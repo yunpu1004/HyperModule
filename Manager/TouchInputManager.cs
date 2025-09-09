@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 
 namespace HyperModule
 {
-    public class TouchInputHandler : MonoBehaviour
+    public class TouchInputManager : MonoBehaviour
     {
         [Header("Actions (2)")]
         [SerializeField] private InputActionReference press;     // Button: <Touchscreen>/primaryTouch/press
