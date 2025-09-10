@@ -1,11 +1,8 @@
 {
   "name": "HyperModule.Editor",
   "rootNamespace": "HyperModule",
-  "references": [
-    "HyperModule.Runtime"
-  ],
+  "references": [ "HyperModule.Runtime" ],
   "includePlatforms": [ "Editor" ],
-  "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
   "precompiledReferences": [],
