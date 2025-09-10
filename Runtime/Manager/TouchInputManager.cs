@@ -7,7 +7,7 @@ namespace HyperModule
 {
     public class TouchInputManager : MonoBehaviour
     {
-        [Header("Actions (2)")]
+        [Header("Actions (2)")] 
         [SerializeField] private InputActionReference press;     // Button: <Touchscreen>/primaryTouch/press
         [SerializeField] private InputActionReference position;  // PassThrough Vector2: <Touchscreen>/primaryTouch/position
 
