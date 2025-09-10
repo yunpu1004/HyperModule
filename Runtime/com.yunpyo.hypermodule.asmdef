@@ -1,11 +1,16 @@
 {
-  "name": "com.yunpyo.hypermodule",
-  "references": [],
+  "name": "HyperModule.Runtime",
+  "rootNamespace": "HyperModule",
+  "references": [
+    "Unity.TextMeshPro"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
   "precompiledReferences": [],
   "autoReferenced": true,
-  "defineConstraints": []
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
 }
