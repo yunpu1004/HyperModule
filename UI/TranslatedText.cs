@@ -9,7 +9,7 @@ using UnityEngine.EventSystems;
 namespace HyperModule
 {
     [RequireComponent(typeof(TextMeshProUGUI))]
-    public class TranslatedText : UIBehaviour
+    public class TranslatedText : BaseUIBehavior
     {
         private TextMeshProUGUI tmpText;
         private Canvas canvas;
@@ -96,7 +96,7 @@ namespace HyperModule
             Refresh();
         }
 
-        protected void Refresh()
+        public override void Refresh()
         {
             tmpText.text = GetText();
 
