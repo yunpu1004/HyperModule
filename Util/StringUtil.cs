@@ -6,13 +6,13 @@ using System.Text.RegularExpressions;
 
 namespace HyperModule
 {
-    public static class StringExtension
+    public static class StringUtil
     {
         /// <summary>
         /// 문자열 안의 중괄호로 둘러쌓인 {태그}를 찾아 순서를 유지한 번호 자리로 바꾸고,
         /// 태그 이름 배열과 태그 존재 여부(true/false)를 함께 돌려준다.
         /// </summary>
-        public static bool GetWrappedText(this string source, out string format, out string[] tags)
+        public static bool GetWrappedText(string source, out string format, out string[] tags)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
 

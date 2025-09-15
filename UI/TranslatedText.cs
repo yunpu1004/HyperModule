@@ -12,7 +12,6 @@ namespace HyperModule
     public class TranslatedText : BaseUIBehavior
     {
         private TextMeshProUGUI tmpText;
-        private Canvas canvas;
         public string filePath;
         public string textTag;
         public LanguageType languageType { get; private set; } = LanguageType.Undefined;
@@ -21,7 +20,6 @@ namespace HyperModule
         protected override void Awake()
         {
             tmpText = GetComponent<TextMeshProUGUI>();
-            canvas = GetComponentInParent<Canvas>(true);
         }
 
         protected override void Start()
@@ -35,7 +33,6 @@ namespace HyperModule
             if (!Application.isPlaying)
             {
                 tmpText = GetComponent<TextMeshProUGUI>();
-                canvas = GetComponentInParent<Canvas>(true);
             }
 
             this.languageType = languageType;
@@ -64,7 +61,7 @@ namespace HyperModule
             {
                 if (textData.TryGetValue(languageType.ToString(), out var textValue))
                 {
-                    if (textValue.GetWrappedText(out string format, out string[] tags))
+                    if (StringUtil.GetWrappedText(textValue, out string format, out string[] tags))
                     {
                         object[] args = tags.Select(arg => DelegateManager.GetDelegate<Delegate>(arg).DynamicInvoke()).ToArray();
                         result = string.Format(format, args);
@@ -88,16 +85,9 @@ namespace HyperModule
             return result;
         }
 
-        protected override void OnCanvasHierarchyChanged()
-        {
-            if (canvas == null) return;
-            if (!canvas.isActiveAndEnabled) return;
-            if (languageType == LanguageType.Undefined) return;
-            Refresh();
-        }
-
         public override void Refresh()
         {
+            if (languageType == LanguageType.Undefined) return;
             tmpText.text = GetText();
 
             var textSettings = textSettingsDict[languageType.ToString()];
@@ -117,7 +107,7 @@ namespace HyperModule
 
         protected override void OnCanvasActiveAndEnabled()
         {
-            
+            Refresh();
         }
 
         protected override void OnCanvasInactiveOrDisabled()

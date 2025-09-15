@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace HyperModule
 {
-    public static class Collider2dExtension
+    public static class Collider2dUtil
     {
         /// <summary>
         /// BoxCollider2D의 네 꼭짓점의 월드 좌표를 반환합니다.
@@ -15,7 +15,7 @@ namespace HyperModule
         /// 순서는 로컬 좌표 정의에 따라 Top-Right, Top-Left, Bottom-Left, Bottom-Right 입니다.
         /// collider가 null이면 null을 반환합니다.
         /// </returns>
-        public static Vector2[] GetBoxColliderWorldCorners(this BoxCollider2D collider)
+        public static Vector2[] GetBoxColliderWorldCorners(BoxCollider2D collider)
         {
             if (collider == null) return null;
 
