@@ -1,0 +1,69 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &7322239655396487429
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2049361764760200732}
+  - component: {fileID: 5749751077727969089}
+  m_Layer: 0
+  m_Name: '[InputManager]'
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2049361764760200732
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7322239655396487429}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.6397726, y: 5.8085446, z: -0.22086397}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5749751077727969089
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7322239655396487429}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b2322728b449864eb83b6c3e42e351f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  press: {fileID: 2118893972196873565, guid: 5896f20dd9b1ed84f91bf8752414301e, type: 3}
+  position: {fileID: -5067041549488091023, guid: 5896f20dd9b1ed84f91bf8752414301e, type: 3}
+  dragStartThreshold: 10
+  doubleTapMaxDelay: 0.35
+  doubleTapMaxDistance: 40
+  pinchDeltaDistanceDeadzone: 0.5
+  emitDragEveryFrame: 1
+  logDebug: 1
+  autoEnableEnhancedTouch: 1
+  synthesizeReleaseIfMissing: 1
+  worldCamera: {fileID: 0}
+  raycastUI: 1
+  raycast3D: 1
+  raycast2D: 1
+  preferUIOverWorld: 1
+  blockWorldIfUI: 1
+  layerMask3D:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  layerMask2D:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  raycastMaxDistance: 1000
