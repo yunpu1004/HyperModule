@@ -115,6 +115,17 @@ namespace HyperModule
             LanguageManager.OnLanguageChanged -= SetLanguage;
         }
 
+        protected override void OnCanvasActiveAndEnabled()
+        {
+            
+        }
+
+        protected override void OnCanvasInactiveOrDisabled()
+        {
+            
+        }
+
+
         [Serializable]
         public class TextSettings
         {
