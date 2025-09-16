@@ -14,7 +14,7 @@ namespace HyperModule
         private TextMeshProUGUI tmpText;
         public string filePath;
         public string textTag;
-        public LanguageType languageType { get; private set; } = LanguageType.Undefined;
+        public LanguageType languageType { get; private set; } = LanguageType.None;
         public SerializableDictionary_StringTextSettings textSettingsDict;
 
         protected override void Awake()
@@ -87,7 +87,7 @@ namespace HyperModule
 
         public override void Refresh()
         {
-            if (languageType == LanguageType.Undefined) return;
+            if (languageType == LanguageType.None) return;
             tmpText.text = GetText();
 
             var textSettings = textSettingsDict[languageType.ToString()];

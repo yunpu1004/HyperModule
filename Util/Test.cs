@@ -7,11 +7,6 @@ namespace HyperModule
 {
     public class Test : MonoBehaviour
     {
-        protected void Start()
-        {
-            QAUtil.Log("QA Symbol Active");
-        }
-
         public void MyTestMethod()
         {
 
@@ -24,7 +19,14 @@ namespace HyperModule
 
         public void MyTestMethod3()
         {
-            PlayerPrefs.DeleteAll();
+            UniTask.Void(async () =>
+            {
+                await AddressablesManager.Init();
+                Debug.Log(AddressablesManager.Get<GameObject>("Cube"));
+                await AddressablesManager.ReleaseAll();
+                Debug.Log("Released all assets");
+            });
+
         }
     }
 }

@@ -4,7 +4,7 @@ namespace HyperModule
 {
     public static class LanguageManager
     {
-        private static LanguageType currentLanguageType = LanguageType.Undefined;
+        private static LanguageType currentLanguageType = LanguageType.None;
         public static LanguageType CurrentLanguageType
         {
             get => currentLanguageType;

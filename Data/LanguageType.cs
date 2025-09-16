@@ -2,8 +2,7 @@ namespace HyperModule
 {
     public enum LanguageType
     {
-        Undefined,
-        NotSupported,
+        None,
         English,
         Korean,
         ChineseSimplified,
