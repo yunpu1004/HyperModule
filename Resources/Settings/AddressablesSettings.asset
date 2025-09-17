@@ -13,5 +13,6 @@ MonoBehaviour:
   m_Name: AddressablesSettings
   m_EditorClassIdentifier: 
   labels:
-  - Prefab
-  - Resource
+  - 2D
+  - 3D
+  - Scene
