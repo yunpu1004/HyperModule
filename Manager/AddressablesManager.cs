@@ -137,11 +137,8 @@ namespace HyperModule
             return TryGet<T>(address, out var a) ? a : null;
         }
 
-/// <summary>
-        /// 로드된 모든 에셋 해제 + 딕셔너리 정리 (비동기)
-        /// - 메인 스레드에서 실행
-        /// - 배치 단위로 Release 하며 프레임 양보로 스파이크 방지
-        /// - UnloadUnusedAssets 를 기다려 실제 메모리 반환 유도
+        /// <summary>
+        /// 로드된 모든 에셋 해제 및 딕셔너리 정리
         /// </summary>
         public static async UniTask ReleaseAll()
         {
