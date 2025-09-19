@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace HyperModule
 {
-    public class ShapeUtil : MonoBehaviour
+    public static class ShapeUtil
     {
         /// <summary>
         /// 축에 평행한 직사각형과 원의 겹치는 영역 넓이를 근사적으로 계산합니다.
