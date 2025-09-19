@@ -36,8 +36,12 @@ namespace HyperModule
         /// <summary>.bytes 확장자를 가진 엑셀 파일 가져오기</summary>
         private static byte[] LoadExcelBytes(string path)
         {
-            string resPath = path.Replace(".bytes", string.Empty);
-            if (resPath.StartsWith("Assets/Resources/")) resPath = resPath.Substring("Assets/Resources/".Length);
+            string resPath = path.Replace('\\', '/').Replace(".bytes", string.Empty);
+
+            const string resourcesToken = "/Resources/";
+            int resourcesIndex = resPath.IndexOf(resourcesToken, System.StringComparison.OrdinalIgnoreCase);
+            if (resourcesIndex >= 0) resPath = resPath.Substring(resourcesIndex + resourcesToken.Length);
+            else if (resPath.StartsWith("Resources/", System.StringComparison.OrdinalIgnoreCase)) resPath = resPath.Substring("Resources/".Length);
 
             TextAsset ta = Resources.Load<TextAsset>(resPath);
             if (ta == null) throw new FileNotFoundException($"Resources 경로 \"{resPath}\"(으)로부터 .xlsx(TextAsset)을 찾을 수 없습니다.");

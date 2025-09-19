@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using HyperModule;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using R3;
 
 namespace HyperModule
 {
@@ -16,6 +16,11 @@ namespace HyperModule
         public string textTag;
         public LanguageType languageType { get; private set; } = LanguageType.None;
         public SerializableDictionary_StringTextSettings textSettingsDict;
+
+        private readonly List<IDisposable> observableSubscriptions = new List<IDisposable>();
+        private string dynamicFormat;
+        private object[] dynamicArguments = Array.Empty<object>();
+        private string[] dynamicTags = Array.Empty<string>();
 
         protected override void Awake()
         {
@@ -42,7 +47,7 @@ namespace HyperModule
         public string GetText()
         {
             string result = null;
-            Dictionary<string, Dictionary<string,string>> dict = null;
+            Dictionary<string, Dictionary<string, string>> dict = null;
 
             if (Application.isPlaying)
             {
@@ -56,18 +61,17 @@ namespace HyperModule
                 dict = ExcelDictionaryLoader.GetDictionary(filePath);
                 if (dict == null) return "Dictionary Not Found";
             }
-
             if (dict.TryGetValue(textTag, out var textData))
             {
                 if (textData.TryGetValue(languageType.ToString(), out var textValue))
                 {
                     if (StringUtil.GetWrappedText(textValue, out string format, out string[] tags))
                     {
-                        object[] args = tags.Select(arg => DelegateManager.GetDelegate<Delegate>(arg).DynamicInvoke()).ToArray();
-                        result = string.Format(format, args);
+                        result = InitializeDynamicText(format, tags);
                     }
                     else
                     {
+                        ClearObservableSubscriptions();
                         result = textValue;
                     }
                 }
@@ -103,6 +107,7 @@ namespace HyperModule
         protected override void OnDestroy()
         {
             LanguageManager.OnLanguageChanged -= SetLanguage;
+            ClearObservableSubscriptions();
         }
 
         protected override void OnCanvasActiveAndEnabled()
@@ -112,9 +117,93 @@ namespace HyperModule
 
         protected override void OnCanvasInactiveOrDisabled()
         {
-            
+
         }
 
+        private string InitializeDynamicText(string format, string[] tags)
+        {
+            ClearObservableSubscriptions();
+
+            dynamicFormat = format;
+            dynamicTags = tags ?? Array.Empty<string>();
+            dynamicArguments = new object[dynamicTags.Length];
+
+            for (int i = 0; i < dynamicTags.Length; i++)
+            {
+                string tagKey = dynamicTags[i];
+                if (ObservableManager.TryGetObservable(tagKey, out Observable<object> observable))
+                {
+                    var subscription = observable.Subscribe(value =>
+                    {
+                        dynamicArguments[i] = value;
+                        UpdateDynamicText();
+                    });
+                    observableSubscriptions.Add(subscription);
+                }
+                else
+                {
+                    QAUtil.LogWarning($"Observable '{tagKey}' not found for tag '{textTag}' in file '{filePath}'.");
+                }
+            }
+
+            UpdateDynamicText();
+            return ComputeDynamicText();
+        }
+
+        private void ClearObservableSubscriptions()
+        {
+            if (observableSubscriptions.Count > 0)
+            {
+                foreach (var subscription in observableSubscriptions)
+                {
+                    subscription?.Dispose();
+                }
+
+                observableSubscriptions.Clear();
+            }
+
+            dynamicFormat = null;
+            dynamicTags = Array.Empty<string>();
+            dynamicArguments = Array.Empty<object>();
+        }
+
+        private void UpdateDynamicText()
+        {
+            if (tmpText == null || string.IsNullOrEmpty(dynamicFormat))
+            {
+                return;
+            }
+
+            tmpText.text = ComputeDynamicText();
+        }
+
+        private string ComputeDynamicText()
+        {
+            if (string.IsNullOrEmpty(dynamicFormat))
+            {
+                return string.Empty;
+            }
+
+            if (dynamicArguments == null || dynamicArguments.Length == 0)
+            {
+                return dynamicFormat;
+            }
+            var args = new object[dynamicArguments.Length];
+            for (int i = 0; i < dynamicArguments.Length; i++)
+            {
+                args[i] = dynamicArguments[i] ?? string.Empty;
+            }
+
+            try
+            {
+                return string.Format(dynamicFormat, args);
+            }
+            catch (FormatException ex)
+            {
+                QAUtil.LogWarning($"Format error for tag '{textTag}' in file '{filePath}': {ex.Message}");
+                return dynamicFormat;
+            }
+        }
 
         [Serializable]
         public class TextSettings
@@ -127,11 +216,12 @@ namespace HyperModule
             public float paragraphSpacing;
             public float fontSize;
         }
-        
-        
+
     }
 }
 
 [Serializable]
 public class SerializableDictionary_StringTextSettings : SerializableDictionary<string, TranslatedText.TextSettings> { }
+
+
 
