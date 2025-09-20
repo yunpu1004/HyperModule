@@ -10,14 +10,7 @@ namespace HyperModule
     {
         public void MyTestMethod()
         {
-            ReactiveProperty<float> reactiveProperty = new ReactiveProperty<float>(0f);
-            Observable<float> floatObservable = reactiveProperty.AsObservable();
-            Observable<object> objectObservable = floatObservable.Select(value => (object)value);
-
-            floatObservable.Subscribe(value => Debug.Log($"Observable<float> value: {value}"));
-            objectObservable.Subscribe(value => Debug.Log($"Observable<object> value: {value}"));
-
-            reactiveProperty.Value = 1.23f;
+            Debug.Log("Hello");
         }
 
         public void MyTestMethod2()

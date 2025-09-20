@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using HyperModule;
 using TMPro;
@@ -16,11 +16,6 @@ namespace HyperModule
         public string textTag;
         public LanguageType languageType { get; private set; } = LanguageType.None;
         public SerializableDictionary_StringTextSettings textSettingsDict;
-
-        private readonly List<IDisposable> observableSubscriptions = new List<IDisposable>();
-        private string dynamicFormat;
-        private object[] dynamicArguments = Array.Empty<object>();
-        private string[] dynamicTags = Array.Empty<string>();
 
         protected override void Awake()
         {
@@ -67,11 +62,10 @@ namespace HyperModule
                 {
                     if (StringUtil.GetWrappedText(textValue, out string format, out string[] tags))
                     {
-                        result = InitializeDynamicText(format, tags);
+                        result = FormatDynamicText(format, tags);
                     }
                     else
                     {
-                        ClearObservableSubscriptions();
                         result = textValue;
                     }
                 }
@@ -107,7 +101,6 @@ namespace HyperModule
         protected override void OnDestroy()
         {
             LanguageManager.OnLanguageChanged -= SetLanguage;
-            ClearObservableSubscriptions();
         }
 
         protected override void OnCanvasActiveAndEnabled()
@@ -120,88 +113,41 @@ namespace HyperModule
 
         }
 
-        private string InitializeDynamicText(string format, string[] tags)
+        private string FormatDynamicText(string format, string[] tags)
         {
-            ClearObservableSubscriptions();
-
-            dynamicFormat = format;
-            dynamicTags = tags ?? Array.Empty<string>();
-            dynamicArguments = new object[dynamicTags.Length];
-
-            for (int i = 0; i < dynamicTags.Length; i++)
-            {
-                string tagKey = dynamicTags[i];
-                if (ObservableManager.TryGetObservable(tagKey, out Observable<object> observable))
-                {
-                    var subscription = observable.Subscribe(value =>
-                    {
-                        dynamicArguments[i] = value;
-                        UpdateDynamicText();
-                    });
-                    observableSubscriptions.Add(subscription);
-                }
-                else
-                {
-                    QAUtil.LogWarning($"Observable '{tagKey}' not found for tag '{textTag}' in file '{filePath}'.");
-                }
-            }
-
-            UpdateDynamicText();
-            return ComputeDynamicText();
-        }
-
-        private void ClearObservableSubscriptions()
-        {
-            if (observableSubscriptions.Count > 0)
-            {
-                foreach (var subscription in observableSubscriptions)
-                {
-                    subscription?.Dispose();
-                }
-
-                observableSubscriptions.Clear();
-            }
-
-            dynamicFormat = null;
-            dynamicTags = Array.Empty<string>();
-            dynamicArguments = Array.Empty<object>();
-        }
-
-        private void UpdateDynamicText()
-        {
-            if (tmpText == null || string.IsNullOrEmpty(dynamicFormat))
-            {
-                return;
-            }
-
-            tmpText.text = ComputeDynamicText();
-        }
-
-        private string ComputeDynamicText()
-        {
-            if (string.IsNullOrEmpty(dynamicFormat))
+            if (string.IsNullOrEmpty(format))
             {
                 return string.Empty;
             }
 
-            if (dynamicArguments == null || dynamicArguments.Length == 0)
+            if (tags == null || tags.Length == 0)
             {
-                return dynamicFormat;
+                return format;
             }
-            var args = new object[dynamicArguments.Length];
-            for (int i = 0; i < dynamicArguments.Length; i++)
+
+            var arguments = new object[tags.Length];
+            for (int i = 0; i < tags.Length; i++)
             {
-                args[i] = dynamicArguments[i] ?? string.Empty;
+                string tagKey = tags[i];
+                if (ReactiveManager.TryGetReactiveValue(tagKey, out var value))
+                {
+                    arguments[i] = value ?? string.Empty;
+                }
+                else
+                {
+                    QAUtil.LogWarning($"Reactive property '{tagKey}' not found for tag '{textTag}' in file '{filePath}'.");
+                    arguments[i] = string.Empty;
+                }
             }
 
             try
             {
-                return string.Format(dynamicFormat, args);
+                return string.Format(format, arguments);
             }
             catch (FormatException ex)
             {
                 QAUtil.LogWarning($"Format error for tag '{textTag}' in file '{filePath}': {ex.Message}");
-                return dynamicFormat;
+                return format;
             }
         }
 
@@ -222,6 +168,3 @@ namespace HyperModule
 
 [Serializable]
 public class SerializableDictionary_StringTextSettings : SerializableDictionary<string, TranslatedText.TextSettings> { }
-
-
-
