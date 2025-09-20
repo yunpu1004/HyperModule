@@ -8,6 +8,7 @@ namespace HyperModule
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
         private static void Init()
         {
+            QAUtil.Log("BeforeSplashScreenInitializer Init");
             ExcelDictionaryManager.Init();
             AddressablesManager.Init().Forget();
         }
