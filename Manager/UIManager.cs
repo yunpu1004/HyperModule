@@ -9,21 +9,39 @@ namespace HyperModule
         private static readonly Dictionary<string, LayoutUIBehavior> layoutCache = new(StringComparer.Ordinal);
         private static readonly Dictionary<string, PopupUIBehavior> popupCache = new(StringComparer.Ordinal);
 
+        private static float layoutMinOrderLayer = 10f;
         private static float popupMinOrderLayer = 100f;
+        private static readonly Stack<LayoutUIBehavior> layoutStack = new();
         private static readonly Stack<PopupUIBehavior> popupStack = new();
 
         // 지정한 레이아웃 UI를 찾아 활성화합니다.
         public static T ShowLayout<T>(string name = null) where T : LayoutUIBehavior
         {
-            if (!TryResolveKey<T>(name, out var key)) return null;
+            TryResolveKey<T>(name, out var key);
 
-            var layout = GetOrCreateBehavior<LayoutUIBehavior, T>(key, layoutCache, isPopup: false);
-            if (layout == null)
+            // 1) 기존 인스턴스 캐시/씬에서 검색
+            if (!TryGetExistingBehavior<LayoutUIBehavior, T>(key, layoutCache, out var layout))
             {
-                QAUtil.LogWarning($"UIManager: Layout '{key}' not found.");
-                return null;
+                // 2) Addressables 에서 프리팹을 찾아 인스턴스화 (우선 key, 다음 UI/key)
+                layout = InstantiateFromAddressables<T>(key, key)
+                         ?? InstantiateFromAddressables<T>($"UI/{key}", key)
+                         // 3) Addressables 에 없으면 기존 Resources 경로도 시도
+                         ?? InstantiateFromResources<T>(key, key)
+                         ?? InstantiateFromResources<T>($"UI/{key}", key);
+
+                if (layout == null)
+                {
+                    QAUtil.LogWarning($"UIManager: Layout '{key}' not found.");
+                    return null;
+                }
+
+                // 4) 캐시에 등록
+                layoutCache[key] = layout;
             }
 
+            RemoveFromLayoutStack(layout);
+            layoutStack.Push(layout);
+            ReorderLayoutLayers();
             layout.Show();
             return layout;
         }
@@ -31,24 +49,40 @@ namespace HyperModule
         // 지정한 레이아웃 UI 인스턴스를 숨깁니다.
         public static void HideLayout<T>(string name = null) where T : LayoutUIBehavior
         {
-            if (!TryResolveKey<T>(name, out var key)) return;
+            TryResolveKey<T>(name, out var key);
 
             if (!TryGetExistingBehavior<LayoutUIBehavior, T>(key, layoutCache, out var layout))
                 return;
 
+            RemoveFromLayoutStack(layout);
             layout.Hide();
+            ReorderLayoutLayers();
+            ResetLayoutCanvas(layout);
         }
 
         // 지정한 팝업 UI를 활성화하고 스택에 추가합니다.
         public static T ShowPopup<T>(string name = null) where T : PopupUIBehavior
         {
-            if (!TryResolveKey<T>(name, out var key)) return null;
+            TryResolveKey<T>(name, out var key);
 
-            var popup = GetOrCreateBehavior<PopupUIBehavior, T>(key, popupCache, isPopup: true);
-            if (popup == null)
+            // 1) 기존 인스턴스 캐시/씬에서 검색
+            if (!TryGetExistingBehavior<PopupUIBehavior, T>(key, popupCache, out var popup))
             {
-                QAUtil.LogWarning($"UIManager: Popup '{key}' not found.");
-                return null;
+                // 2) Addressables 에서 프리팹을 찾아 인스턴스화 (우선 key, 다음 Popup/key)
+                popup = InstantiateFromAddressables<T>(key, key)
+                        ?? InstantiateFromAddressables<T>($"Popup/{key}", key)
+                        // 3) Addressables 에 없으면 기존 Resources 경로도 시도
+                        ?? InstantiateFromResources<T>(key, key)
+                        ?? InstantiateFromResources<T>($"Popup/{key}", key);
+
+                if (popup == null)
+                {
+                    QAUtil.LogWarning($"UIManager: Popup '{key}' not found.");
+                    return null;
+                }
+
+                // 4) 캐시에 등록
+                popupCache[key] = popup;
             }
 
             RemoveFromPopupStack(popup);
@@ -61,23 +95,14 @@ namespace HyperModule
         // 스택에서 제거한 팝업 UI를 숨깁니다.
         public static void HidePopup<T>(string name = null) where T : PopupUIBehavior
         {
-            if (!TryResolveKey<T>(name, out var key)) return;
+            TryResolveKey<T>(name, out var key);
 
             if (!TryGetExistingBehavior<PopupUIBehavior, T>(key, popupCache, out var popup))
                 return;
 
-            HidePopupInternal(popup);
-        }
-
-        // 팝업 숨김 공통 로직을 처리합니다.
-        private static void HidePopupInternal(PopupUIBehavior popup)
-        {
-            bool removed = RemoveFromPopupStack(popup);
+            RemoveFromPopupStack(popup);
             popup.Hide();
-            if (removed)
-            {
-                ReorderPopupLayers();
-            }
+            ReorderPopupLayers();
             ResetPopupCanvas(popup);
         }
 
@@ -114,11 +139,6 @@ namespace HyperModule
                 }
 
                 cache.Remove(key);
-
-                if (cached != null)
-                {
-                    QAUtil.LogWarning($"UIManager: Cached '{key}' is '{cached.GetType().Name}', expected '{typeof(TBehavior).Name}'.");
-                }
             }
 
             var located = FindBehaviorInScene<TBehavior>(key);
@@ -134,22 +154,15 @@ namespace HyperModule
         }
 
         // 이름이 없으면 타입명으로 키를 결정합니다.
-        private static bool TryResolveKey<T>(string name, out string key) where T : BaseUIBehavior
+        private static void TryResolveKey<T>(string name, out string key) where T : BaseUIBehavior
         {
             if (!string.IsNullOrWhiteSpace(name))
             {
                 key = name.Trim();
-                return true;
+                return;
             }
 
             key = typeof(T).Name;
-            if (string.IsNullOrEmpty(key))
-            {
-                QAUtil.LogWarning($"UIManager: Could not resolve key for type '{typeof(T).FullName}'.");
-                return false;
-            }
-
-            return true;
         }
 
         // 씬에서 키와 일치하는 UI 컴포넌트를 찾습니다.
@@ -159,8 +172,6 @@ namespace HyperModule
             for (int i = 0; i < candidates.Length; i++)
             {
                 var candidate = candidates[i];
-                if (candidate == null) continue;
-
                 if (IsNameMatch(candidate, key))
                     return candidate;
             }
@@ -171,21 +182,8 @@ namespace HyperModule
         // 동일한 이름 또는 타입인지 확인합니다.
         private static bool IsNameMatch(BaseUIBehavior behavior, string key)
         {
-            if (behavior == null) return false;
-
-            var goName = behavior.gameObject.name;
-            if (!string.IsNullOrEmpty(goName) && string.Equals(goName, key, StringComparison.Ordinal))
-                return true;
-
-            var typeName = behavior.GetType().Name;
-            if (!string.IsNullOrEmpty(typeName) && string.Equals(typeName, key, StringComparison.Ordinal))
-                return true;
-
-            var fullTypeName = behavior.GetType().FullName;
-            if (!string.IsNullOrEmpty(fullTypeName) && string.Equals(fullTypeName, key, StringComparison.Ordinal))
-                return true;
-
-            return false;
+            var t = behavior.GetType();
+            return behavior.gameObject.name == key || t.Name == key || t.FullName == key;
         }
 
         // 어드레서블 또는 리소스에서 UI 프리팹을 로드합니다.
@@ -253,6 +251,80 @@ namespace HyperModule
             return behavior;
         }
 
+        // 레이아웃 스택 순서대로 캔버스 정렬값을 갱신합니다.
+        private static void ReorderLayoutLayers()
+        {
+            CleanupLayoutStack();
+
+            var array = layoutStack.ToArray();
+            int baseOrder = Mathf.RoundToInt(layoutMinOrderLayer);
+
+            for (int i = array.Length - 1, orderIndex = 0; i >= 0; i--, orderIndex++)
+            {
+                var layout = array[i];
+                ApplyLayoutLayer(layout, baseOrder + orderIndex);
+            }
+        }
+
+        // 레이아웃 캔버스 정렬값을 적용합니다.
+        private static void ApplyLayoutLayer(LayoutUIBehavior layout, int sortingOrder)
+        {
+            var canvas = layout?.canvas;
+            if (canvas == null) return;
+
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = sortingOrder;
+        }
+
+        // 레이아웃 스택에서 지정된 레이아웃을 제거합니다.
+        private static bool RemoveFromLayoutStack(LayoutUIBehavior layout)
+        {
+            if (layoutStack.Count == 0) return false;
+
+            var removed = false;
+            var buffer = new List<LayoutUIBehavior>(layoutStack.Count);
+            while (layoutStack.Count > 0)
+            {
+                var current = layoutStack.Pop();
+                if (!removed && current == layout)
+                {
+                    removed = true;
+                    continue;
+                }
+
+                if (current != null)
+                {
+                    buffer.Add(current);
+                }
+            }
+
+            for (int i = buffer.Count - 1; i >= 0; i--)
+            {
+                layoutStack.Push(buffer[i]);
+            }
+
+            return removed;
+        }
+
+        // 레이아웃 스택에서 null 항목을 정리합니다.
+        private static void CleanupLayoutStack()
+        {
+            if (layoutStack.Count == 0) return;
+
+            var buffer = new List<LayoutUIBehavior>(layoutStack.Count);
+            while (layoutStack.Count > 0)
+            {
+                var current = layoutStack.Pop();
+                if (current == null) continue;
+                buffer.Add(current);
+            }
+
+            for (int i = buffer.Count - 1; i >= 0; i--)
+            {
+                layoutStack.Push(buffer[i]);
+            }
+        }
+
         // 팝업 스택에서 지정된 팝업을 제거합니다.
         private static bool RemoveFromPopupStack(PopupUIBehavior popup)
         {
@@ -269,13 +341,10 @@ namespace HyperModule
                     continue;
                 }
 
-                if (current == null)
+                if (current != null)
                 {
-                    removed = true;
-                    continue;
+                    buffer.Add(current);
                 }
-
-                buffer.Add(current);
             }
 
             for (int i = buffer.Count - 1; i >= 0; i--)
@@ -289,8 +358,6 @@ namespace HyperModule
         // 스택 순서대로 팝업 캔버스 정렬값을 갱신합니다.
         private static void ReorderPopupLayers()
         {
-            if (popupStack.Count == 0) return;
-
             CleanupPopupStack();
 
             var array = popupStack.ToArray();
@@ -299,8 +366,6 @@ namespace HyperModule
             for (int i = array.Length - 1, orderIndex = 0; i >= 0; i--, orderIndex++)
             {
                 var popup = array[i];
-                if (popup == null) continue;
-
                 var canvas = popup.canvas;
                 if (canvas == null) continue;
 
@@ -339,14 +404,17 @@ namespace HyperModule
             canvas.overrideSorting = false;
             canvas.sortingOrder = 0;
         }
+
+        // 레이아웃 캔버스 정렬을 원래 상태로 되돌립니다.
+        private static void ResetLayoutCanvas(LayoutUIBehavior layout)
+        {
+            var canvas = layout?.canvas;
+            if (canvas == null) return;
+
+            if (layoutStack.Contains(layout)) return;
+
+            canvas.overrideSorting = false;
+            canvas.sortingOrder = 0;
+        }
     }
 }
-
-
-
-
-
-
-
-
-

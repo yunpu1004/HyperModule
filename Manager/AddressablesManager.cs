@@ -18,7 +18,7 @@ namespace HyperModule
         // 나중에 해제하기 위한 핸들 보관
         private static readonly List<AsyncOperationHandle> _assetHandles = new List<AsyncOperationHandle>();
 
-        private static bool _isLoading;
+        public static LoadState loadState { get; private set; } = LoadState.Unloaded;
 
         /// <summary>
         /// Resources/Settings/AddressablesSettings 를 로드하여, labels 기준으로
@@ -27,19 +27,19 @@ namespace HyperModule
         /// </summary>
         public static async UniTask Init()
         {
-            if (_isLoading)
+            if (loadState == LoadState.Loading)
             {
                 QAUtil.LogWarning("[AddressablesManager] Init already in progress.");
                 return;
             }
-            _isLoading = true;
+            loadState = LoadState.Loading;
 
             // 1) SO 로드
             _settings = Resources.Load<AddressablesSettings>("Settings/AddressablesSettings");
             if (_settings == null)
             {
                 QAUtil.LogError("[AddressablesManager] AddressablesSettings is not found in Resources/Settings/");
-                _isLoading = false;
+                loadState = LoadState.Unloaded;
                 return;
             }
 
@@ -48,7 +48,7 @@ namespace HyperModule
             if (labels == null || labels.Length == 0)
             {
                 QAUtil.LogWarning("[AddressablesManager] AddressablesSettings.labels is null or empty.");
-                _isLoading = false;
+                loadState = LoadState.Unloaded;
                 return;
             }
 
@@ -63,7 +63,7 @@ namespace HyperModule
                 {
                     QAUtil.LogError("[AddressablesManager] Failed to load resource locations for labels.");
                     Addressables.Release(locHandle);
-                    _isLoading = false;
+                    loadState = LoadState.Unloaded;
                     return;
                 }
 
@@ -103,6 +103,7 @@ namespace HyperModule
 
                 Addressables.Release(locHandle);
                 QAUtil.Log($"[AddressablesManager] Loaded {loadedCount} / {uniqueLocations.Count} assets into dictionary.");
+                loadState = LoadState.Loaded;
             }
             catch (Exception e)
             {
@@ -110,7 +111,8 @@ namespace HyperModule
             }
             finally
             {
-                _isLoading = false;
+                if (loadState == LoadState.Loading)
+                    loadState = LoadState.Unloaded;
             }
         }
 
@@ -142,7 +144,7 @@ namespace HyperModule
         public static async UniTask ReleaseAll()
         {
             // Init 진행 중이면 안전하게 중단
-            if (_isLoading)
+            if (loadState == LoadState.Loading)
             {
                 QAUtil.LogWarning("[AddressablesManager] ReleaseAll skipped: Init is in progress.");
                 return;
@@ -156,6 +158,7 @@ namespace HyperModule
             {
                 _assetMap.Clear();
                 QAUtil.Log("[AddressablesManager] No loaded assets to release. Cleared dictionary.");
+                loadState = LoadState.Unloaded;
                 return;
             }
 
@@ -196,6 +199,7 @@ namespace HyperModule
             GC.WaitForPendingFinalizers();
 
             QAUtil.Log($"[AddressablesManager] Released {released}/{total} handles, cleared dictionary, and unloaded unused assets.");
+            loadState = LoadState.Unloaded;
         }
     }
 }
