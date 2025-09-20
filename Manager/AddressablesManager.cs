@@ -10,7 +10,7 @@ namespace HyperModule
 {
     public static class AddressablesManager
     {
-        private static AddressablesSettings _settings;
+        private static ProjectSettings _settings;
 
         // address(PrimaryKey) -> loaded asset
         private static readonly Dictionary<string, object> _assetMap = new Dictionary<string, object>();
@@ -21,7 +21,7 @@ namespace HyperModule
         public static LoadState loadState { get; private set; } = LoadState.Unloaded;
 
         /// <summary>
-        /// Resources/Settings/AddressablesSettings 를 로드하여, labels 기준으로
+        /// Resources/Settings/ProjectSettings 를 로드하여, addressablesLabels 기준으로
         /// Addressables 에셋을 모두 로드하고 Dictionary<string, object> 에 저장합니다.
         /// 키는 에셋의 Address(PrimaryKey) 입니다.
         /// </summary>
@@ -35,19 +35,19 @@ namespace HyperModule
             loadState = LoadState.Loading;
 
             // 1) SO 로드
-            _settings = Resources.Load<AddressablesSettings>("Settings/AddressablesSettings");
+            _settings = Resources.Load<ProjectSettings>("Settings/ProjectSettings");
             if (_settings == null)
             {
-                QAUtil.LogError("[AddressablesManager] AddressablesSettings is not found in Resources/Settings/");
+                QAUtil.LogError("[AddressablesManager] ProjectSettings is not found in Resources/Settings/");
                 loadState = LoadState.Unloaded;
                 return;
             }
 
-            string[] labels = _settings.labels;
+            string[] labels = _settings.addressablesLabels;
             // 2) labels 검증
             if (labels == null || labels.Length == 0)
             {
-                QAUtil.LogWarning("[AddressablesManager] AddressablesSettings.labels is null or empty.");
+                QAUtil.LogWarning("[AddressablesManager] ProjectSettings.addressablesLabels is null or empty.");
                 loadState = LoadState.Unloaded;
                 return;
             }

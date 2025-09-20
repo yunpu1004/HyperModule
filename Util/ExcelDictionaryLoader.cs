@@ -8,7 +8,7 @@ using ExcelDataReader;
 
 namespace HyperModule
 {
-    public class ExcelDictionaryLoader
+    public static class ExcelDictionaryLoader
     {
         // .xlsx 파일 호환을 위해 한 번만 등록
         static ExcelDictionaryLoader() 
