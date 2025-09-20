@@ -11,6 +11,7 @@ namespace HyperModule
             QAUtil.Log("BeforeSplashScreenInitializer Init");
             ExcelDictionaryManager.Init();
             AddressablesManager.Init().Forget();
+            TouchInputManager.Init();
         }
     }
 }

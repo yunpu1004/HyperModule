@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 2049361764760200732}
   - component: {fileID: 5749751077727969089}
   m_Layer: 0
-  m_Name: '[ModuleManagers]'
+  m_Name: '[TouchInputManager]'
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -46,7 +46,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   press: {fileID: 2118893972196873565, guid: 5896f20dd9b1ed84f91bf8752414301e, type: 3}
   position: {fileID: -5067041549488091023, guid: 5896f20dd9b1ed84f91bf8752414301e, type: 3}
-  dragStartThreshold: 10
+  dragStartThreshold: 120
   doubleTapMaxDelay: 0.35
   doubleTapMaxDistance: 40
   pinchDeltaDistanceDeadzone: 0.5

@@ -113,7 +113,22 @@ namespace HyperModule
         // ★ 추가: 현재 입력을 발생시킨 '활성 포인터 디바이스'를 기억 (첫 입력 좌표 보장용)
         private InputDevice activePointerDevice;
 
-        // -------------- Unity Lifecycle --------------
+        public static void Init()
+        {
+            if (FindAnyObjectByType<TouchInputManager>(FindObjectsInactive.Include) != null)
+                return;
+
+            var prefab = Resources.Load<GameObject>("Prefab/[TouchInputManager]");
+            if (prefab != null)
+            {
+                var go = Instantiate(prefab);
+                go.name = prefab.name;
+            }
+            else
+            {
+                QAUtil.LogWarning("Resources/Prefab/[TouchInputManager] prefab not found.");
+            }
+        }
 
         private void Awake()
         {
@@ -126,6 +141,7 @@ namespace HyperModule
             // ★ 첫 프레임 전에 포인터 좌표 프라임(Pre-warm)
             var primed = TryReadBestPointerPosition(out var primedPos);
             lastPos = currentPos = primed ? primedPos : Vector2.zero;
+            DontDestroyOnLoad(gameObject);
         }
 
         private void OnEnable()
