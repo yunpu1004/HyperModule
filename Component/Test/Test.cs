@@ -10,7 +10,7 @@ namespace HyperModule
     {
         public void MyTestMethod()
         {
-            Debug.Log("Hello");
+            
         }
 
         public void MyTestMethod2()
@@ -19,13 +19,7 @@ namespace HyperModule
 
         public void MyTestMethod3()
         {
-            UniTask.Void(async () =>
-            {
-                await AddressablesManager.Init();
-                Debug.Log(AddressablesManager.Get<GameObject>("Cube"));
-                await AddressablesManager.ReleaseAll();
-                Debug.Log("Released all assets");
-            });
+
 
         }
     }

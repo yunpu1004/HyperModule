@@ -15,11 +15,12 @@ namespace HyperModule
         private static readonly Stack<PopupUIBehavior> popupStack = new();
 
         // 지정한 레이아웃 UI를 찾아 활성화합니다.
-        public static T ShowLayout<T>(string name = null) where T : LayoutUIBehavior
+        public static LayoutUIBehavior ShowLayout(string name)
         {
-            TryResolveKey<T>(name, out var key);
+            var key = NormalizeKey(name);
+            if (key == null) return null;
 
-            var layout = GetOrCreateBehavior<LayoutUIBehavior, T>(key, layoutCache, isPopup: false, notFoundLabel: "Layout");
+            var layout = GetOrCreateBehavior<LayoutUIBehavior, LayoutUIBehavior>(key, layoutCache, isPopup: false, notFoundLabel: "Layout");
             if (layout == null) return null;
 
             RemoveFromLayoutStack(layout);
@@ -30,11 +31,12 @@ namespace HyperModule
         }
 
         // 지정한 레이아웃 UI를 찾아 비활성화합니다.
-        public static T HideLayout<T>(string name = null) where T : LayoutUIBehavior
+        public static LayoutUIBehavior HideLayout(string name)
         {
-            TryResolveKey<T>(name, out var key);
+            var key = NormalizeKey(name);
+            if (key == null) return null;
 
-            if (!TryGetExistingBehavior<LayoutUIBehavior, T>(key, layoutCache, out var layout))
+            if (!TryGetExistingBehavior<LayoutUIBehavior, LayoutUIBehavior>(key, layoutCache, out var layout))
                 return null;
 
             RemoveFromLayoutStack(layout);
@@ -45,11 +47,12 @@ namespace HyperModule
         }
 
         // 지정한 팝업 UI를 찾아 활성화합니다.
-        public static T ShowPopup<T>(string name = null) where T : PopupUIBehavior
+        public static PopupUIBehavior ShowPopup(string name)
         {
-            TryResolveKey<T>(name, out var key);
+            var key = NormalizeKey(name);
+            if (key == null) return null;
 
-            var popup = GetOrCreateBehavior<PopupUIBehavior, T>(key, popupCache, isPopup: true, notFoundLabel: "Popup");
+            var popup = GetOrCreateBehavior<PopupUIBehavior, PopupUIBehavior>(key, popupCache, isPopup: true, notFoundLabel: "Popup");
             if (popup == null) return null;
             
             RemoveFromPopupStack(popup);
@@ -60,11 +63,12 @@ namespace HyperModule
         }
 
         // 지정한 팝업 UI를 찾아 비활성화합니다.
-        public static T HidePopup<T>(string name = null) where T : PopupUIBehavior
+        public static PopupUIBehavior HidePopup(string name)
         {
-            TryResolveKey<T>(name, out var key);
+            var key = NormalizeKey(name);
+            if (key == null) return null;
 
-            if (!TryGetExistingBehavior<PopupUIBehavior, T>(key, popupCache, out var popup))
+            if (!TryGetExistingBehavior<PopupUIBehavior, PopupUIBehavior>(key, popupCache, out var popup))
                 return null;
 
             RemoveFromPopupStack(popup);
@@ -75,11 +79,12 @@ namespace HyperModule
         }
 
         // 지정한 레이아웃 UI를 찾아 Refresh를 호출합니다.
-        public static T RefreshLayout<T>(string name = null) where T : LayoutUIBehavior
+        public static LayoutUIBehavior RefreshLayout(string name)
         {
-            TryResolveKey<T>(name, out var key);
+            var key = NormalizeKey(name);
+            if (key == null) return null;
 
-            if (!TryGetExistingBehavior<LayoutUIBehavior, T>(key, layoutCache, out var layout))
+            if (!TryGetExistingBehavior<LayoutUIBehavior, LayoutUIBehavior>(key, layoutCache, out var layout))
                 return null;
 
             layout.Refresh();
@@ -87,11 +92,12 @@ namespace HyperModule
         }
 
         // 지정한 팝업 UI를 찾아 Refresh를 호출합니다.
-        public static T RefreshPopup<T>(string name = null) where T : PopupUIBehavior
+        public static PopupUIBehavior RefreshPopup(string name)
         {
-            TryResolveKey<T>(name, out var key);
+            var key = NormalizeKey(name);
+            if (key == null) return null;
 
-            if (!TryGetExistingBehavior<PopupUIBehavior, T>(key, popupCache, out var popup))
+            if (!TryGetExistingBehavior<PopupUIBehavior, PopupUIBehavior>(key, popupCache, out var popup))
                 return null;
 
             popup.Refresh();
@@ -167,16 +173,16 @@ namespace HyperModule
             return false;
         }
 
-        // 이름이 없으면 타입명으로 키를 결정합니다.
-        private static void TryResolveKey<T>(string name, out string key) where T : BaseUIBehavior
+        // name 문자열을 정규화합니다. null/empty면 경고 후 null 반환.
+        private static string NormalizeKey(string name)
         {
-            if (!string.IsNullOrWhiteSpace(name))
+            if (string.IsNullOrWhiteSpace(name))
             {
-                key = name.Trim();
-                return;
+                QAUtil.LogWarning("UIManager: name is null or empty.");
+                return null;
             }
 
-            key = typeof(T).Name;
+            return name.Trim();
         }
 
         // 씬에서 키와 일치하는 UI 컴포넌트를 찾습니다.
