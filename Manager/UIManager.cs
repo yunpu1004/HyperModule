@@ -19,24 +19,8 @@ namespace HyperModule
         {
             TryResolveKey<T>(name, out var key);
 
-            // 1) 기존 인스턴스 캐시/씬에서 검색
-            if (!TryGetExistingBehavior<LayoutUIBehavior, T>(key, layoutCache, out var layout))
-            {
-                // 2) Addressables/Resources 폴백으로 UI 인스턴스화
-                layout = InstantiateUIBehavior<T>(key, isPopup: false);
-
-                if (layout == null)
-                {
-                    QAUtil.LogWarning($"UIManager: Layout '{key}' not found.");
-                    return null;
-                }
-
-                // 3) 캐시에 등록
-                layoutCache[key] = layout;
-
-                // 4) 캔버스 카메라 셋업
-                SetupCanvasCamera(layout.canvas);
-            }
+            var layout = GetOrCreateBehavior<LayoutUIBehavior, T>(key, layoutCache, isPopup: false, notFoundLabel: "Layout");
+            if (layout == null) return null;
 
             RemoveFromLayoutStack(layout);
             layoutStack.Push(layout);
@@ -45,44 +29,29 @@ namespace HyperModule
             return layout;
         }
 
-        // 지정한 레이아웃 UI 인스턴스를 숨깁니다.
-        public static void HideLayout<T>(string name = null) where T : LayoutUIBehavior
+        // 지정한 레이아웃 UI를 찾아 비활성화합니다.
+        public static T HideLayout<T>(string name = null) where T : LayoutUIBehavior
         {
             TryResolveKey<T>(name, out var key);
 
             if (!TryGetExistingBehavior<LayoutUIBehavior, T>(key, layoutCache, out var layout))
-                return;
+                return null;
 
             RemoveFromLayoutStack(layout);
             layout.Hide();
             ReorderLayoutLayers();
             ResetLayoutCanvas(layout);
+            return layout;
         }
 
-        // 지정한 팝업 UI를 활성화하고 스택에 추가합니다.
+        // 지정한 팝업 UI를 찾아 활성화합니다.
         public static T ShowPopup<T>(string name = null) where T : PopupUIBehavior
         {
             TryResolveKey<T>(name, out var key);
 
-            // 1) 기존 인스턴스 캐시/씬에서 검색
-            if (!TryGetExistingBehavior<PopupUIBehavior, T>(key, popupCache, out var popup))
-            {
-                // 2) Addressables/Resources 폴백으로 UI 인스턴스화
-                popup = InstantiateUIBehavior<T>(key, isPopup: true);
-
-                if (popup == null)
-                {
-                    QAUtil.LogWarning($"UIManager: Popup '{key}' not found.");
-                    return null;
-                }
-
-                // 3) 캐시에 등록
-                popupCache[key] = popup;
-
-                // 4) 캔버스 카메라 셋업
-                SetupCanvasCamera(popup.canvas);
-            }
-
+            var popup = GetOrCreateBehavior<PopupUIBehavior, T>(key, popupCache, isPopup: true, notFoundLabel: "Popup");
+            if (popup == null) return null;
+            
             RemoveFromPopupStack(popup);
             popupStack.Push(popup);
             ReorderPopupLayers();
@@ -90,18 +59,67 @@ namespace HyperModule
             return popup;
         }
 
-        // 스택에서 제거한 팝업 UI를 숨깁니다.
-        public static void HidePopup<T>(string name = null) where T : PopupUIBehavior
+        // 지정한 팝업 UI를 찾아 비활성화합니다.
+        public static T HidePopup<T>(string name = null) where T : PopupUIBehavior
         {
             TryResolveKey<T>(name, out var key);
 
             if (!TryGetExistingBehavior<PopupUIBehavior, T>(key, popupCache, out var popup))
-                return;
+                return null;
 
             RemoveFromPopupStack(popup);
             popup.Hide();
             ReorderPopupLayers();
             ResetPopupCanvas(popup);
+            return popup;
+        }
+
+        // 지정한 레이아웃 UI를 찾아 Refresh를 호출합니다.
+        public static T RefreshLayout<T>(string name = null) where T : LayoutUIBehavior
+        {
+            TryResolveKey<T>(name, out var key);
+
+            if (!TryGetExistingBehavior<LayoutUIBehavior, T>(key, layoutCache, out var layout))
+                return null;
+
+            layout.Refresh();
+            return layout;
+        }
+
+        // 지정한 팝업 UI를 찾아 Refresh를 호출합니다.
+        public static T RefreshPopup<T>(string name = null) where T : PopupUIBehavior
+        {
+            TryResolveKey<T>(name, out var key);
+
+            if (!TryGetExistingBehavior<PopupUIBehavior, T>(key, popupCache, out var popup))
+                return null;
+
+            popup.Refresh();
+            return popup;
+        }
+
+        // 공통: 기존 인스턴스 검색 후 없으면 생성/캐시/카메라 셋업까지 수행합니다.
+        private static TBehavior GetOrCreateBehavior<TBase, TBehavior>(
+            string key,
+            Dictionary<string, TBase> cache,
+            bool isPopup,
+            string notFoundLabel)
+            where TBase : BaseUIBehavior
+            where TBehavior : class, TBase
+        {
+            if (TryGetExistingBehavior<TBase, TBehavior>(key, cache, out var behavior))
+                return behavior;
+
+            behavior = InstantiateUIBehavior<TBehavior>(key, isPopup);
+            if (behavior == null)
+            {
+                QAUtil.LogWarning($"UIManager: {notFoundLabel} '{key}' not found.");
+                return null;
+            }
+
+            cache[key] = behavior;
+            SetupCanvasCamera(behavior.canvas);
+            return behavior;
         }
 
         // 캔버스가 ScreenSpace-Camera 모드라면 메인 카메라를 지정합니다.
