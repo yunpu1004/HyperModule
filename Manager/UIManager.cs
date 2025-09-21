@@ -22,12 +22,8 @@ namespace HyperModule
             // 1) 기존 인스턴스 캐시/씬에서 검색
             if (!TryGetExistingBehavior<LayoutUIBehavior, T>(key, layoutCache, out var layout))
             {
-                // 2) Addressables 에서 프리팹을 찾아 인스턴스화 (우선 key, 다음 UI/key)
-                layout = InstantiateFromAddressables<T>(key, key)
-                         ?? InstantiateFromAddressables<T>($"UI/{key}", key)
-                         // 3) Addressables 에 없으면 기존 Resources 경로도 시도
-                         ?? InstantiateFromResources<T>(key, key)
-                         ?? InstantiateFromResources<T>($"UI/{key}", key);
+                // 2) Addressables/Resources 폴백으로 UI 인스턴스화
+                layout = InstantiateUIBehavior<T>(key, isPopup: false);
 
                 if (layout == null)
                 {
@@ -35,8 +31,11 @@ namespace HyperModule
                     return null;
                 }
 
-                // 4) 캐시에 등록
+                // 3) 캐시에 등록
                 layoutCache[key] = layout;
+
+                // 4) 캔버스 카메라 셋업
+                SetupCanvasCamera(layout.canvas);
             }
 
             RemoveFromLayoutStack(layout);
@@ -68,12 +67,8 @@ namespace HyperModule
             // 1) 기존 인스턴스 캐시/씬에서 검색
             if (!TryGetExistingBehavior<PopupUIBehavior, T>(key, popupCache, out var popup))
             {
-                // 2) Addressables 에서 프리팹을 찾아 인스턴스화 (우선 key, 다음 Popup/key)
-                popup = InstantiateFromAddressables<T>(key, key)
-                        ?? InstantiateFromAddressables<T>($"Popup/{key}", key)
-                        // 3) Addressables 에 없으면 기존 Resources 경로도 시도
-                        ?? InstantiateFromResources<T>(key, key)
-                        ?? InstantiateFromResources<T>($"Popup/{key}", key);
+                // 2) Addressables/Resources 폴백으로 UI 인스턴스화
+                popup = InstantiateUIBehavior<T>(key, isPopup: true);
 
                 if (popup == null)
                 {
@@ -81,8 +76,11 @@ namespace HyperModule
                     return null;
                 }
 
-                // 4) 캐시에 등록
+                // 3) 캐시에 등록
                 popupCache[key] = popup;
+
+                // 4) 캔버스 카메라 셋업
+                SetupCanvasCamera(popup.canvas);
             }
 
             RemoveFromPopupStack(popup);
@@ -106,23 +104,21 @@ namespace HyperModule
             ResetPopupCanvas(popup);
         }
 
-        // 캐시에서 찾거나 없으면 로드하여 캐시에 등록합니다.
-        private static TBehavior GetOrCreateBehavior<TBase, TBehavior>(string key, Dictionary<string, TBase> cache, bool isPopup)
-            where TBase : BaseUIBehavior
-            where TBehavior : class, TBase
+        // 캔버스가 ScreenSpace-Camera 모드라면 메인 카메라를 지정합니다.
+        private static void SetupCanvasCamera(Canvas canvas)
         {
-            if (TryGetExistingBehavior<TBase, TBehavior>(key, cache, out var existing))
-            {
-                return existing;
-            }
+            if (canvas == null) return;
+            if (canvas.renderMode != RenderMode.ScreenSpaceCamera) return;
 
-            var loaded = LoadBehavior<TBase, TBehavior>(key, isPopup);
-            if (loaded != null)
+            var mainCam = Camera.main;
+            if (mainCam != null)
             {
-                cache[key] = loaded;
+                canvas.worldCamera = mainCam;
             }
-
-            return loaded;
+            else
+            {
+                QAUtil.LogWarning("UIManager: Main Camera not found for ScreenSpace-Camera Canvas.");
+            }
         }
 
         // 캐시 또는 씬에서 기존 UI 인스턴스를 찾습니다.
@@ -186,23 +182,16 @@ namespace HyperModule
             return behavior.gameObject.name == key || t.Name == key || t.FullName == key;
         }
 
-        // 어드레서블 또는 리소스에서 UI 프리팹을 로드합니다.
-        private static TBehavior LoadBehavior<TBase, TBehavior>(string key, bool isPopup)
-            where TBase : BaseUIBehavior
-            where TBehavior : class, TBase
+        // Addressables/Resources 경로를 폴백으로 시도하여 UI를 인스턴스화합니다.
+        private static TBehavior InstantiateUIBehavior<TBehavior>(string key, bool isPopup) where TBehavior : BaseUIBehavior
         {
             string folder = isPopup ? "Popup" : "UI";
 
-            var behavior = InstantiateFromAddressables<TBehavior>(key, key);
-            if (behavior != null) return behavior;
-
-            behavior = InstantiateFromAddressables<TBehavior>($"{folder}/{key}", key);
-            if (behavior != null) return behavior;
-
-            behavior = InstantiateFromResources<TBehavior>(key, key);
-            if (behavior != null) return behavior;
-
-            return InstantiateFromResources<TBehavior>($"{folder}/{key}", key);
+            return
+                InstantiateFromAddressables<TBehavior>(key, key)
+                ?? InstantiateFromAddressables<TBehavior>($"{folder}/{key}", key)
+                ?? InstantiateFromResources<TBehavior>(key, key)
+                ?? InstantiateFromResources<TBehavior>($"{folder}/{key}", key);
         }
 
         // 어드레서블 프리팹을 인스턴스화합니다.

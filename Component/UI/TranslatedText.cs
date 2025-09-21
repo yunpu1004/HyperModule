@@ -103,16 +103,6 @@ namespace HyperModule
             LanguageManager.OnLanguageChanged -= SetLanguage;
         }
 
-        protected override void OnCanvasActiveAndEnabled()
-        {
-            Refresh();
-        }
-
-        protected override void OnCanvasInactiveOrDisabled()
-        {
-
-        }
-
         private string FormatDynamicText(string format, string[] tags)
         {
             if (string.IsNullOrEmpty(format))

@@ -35,18 +35,24 @@ namespace HyperModule
         /// Canvas가 활성화되는 경우에 호출됩니다. 
         /// <br/> 만약 Awake가 아직 호출되지 않았다면, 이 메서드는 호출되지 않습니다.
         /// </summary>
-        protected abstract void OnCanvasActiveAndEnabled();
+        protected virtual void OnCanvasActiveAndEnabled()
+        {
+            Refresh();
+        }
 
         /// <summary>
         /// Canvas가 비활성화되는 경우에 호출됩니다. 
         /// <br/> 만약 Awake가 아직 호출되지 않았다면, 이 메서드는 호출되지 않습니다.
         /// </summary>
-        protected abstract void OnCanvasInactiveOrDisabled();
+        protected virtual void OnCanvasInactiveOrDisabled()
+        {
+            
+        }
 
         protected override void OnCanvasHierarchyChanged()
         {
-            if(canvas == null) return;
-            if(!didAwake) return;
+            if (canvas == null) return;
+            if (!didAwake) return;
 
             if (canvas.isActiveAndEnabled)
             {
