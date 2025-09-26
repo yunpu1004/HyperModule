@@ -59,29 +59,129 @@ namespace HyperModule
         [SerializeField] private LayerMask layerMask2D = ~0;
         [SerializeField] private float raycastMaxDistance = 1000f;
 
-        // ========= 이벤트 (모든 시그니처에 PointerTarget 포함) =========
-        public static Action<PointerTarget> OnPressed;
-        public static Action<PointerTarget> OnTap;
-        public static Action<PointerTarget> OnDoubleTap;
-        public static Action<PointerTarget> OnDragStart;
-        // delta(from prev), total(from down), target(press 기준)
-        public static Action<Vector2, Vector2, PointerTarget> OnDrag;
-        public static Action<Vector2, PointerTarget> OnDragEnd;  // total(from down), target(press 기준)
+        // ========= 단일 터치 이벤트 =========
+        public static event Action<TouchInfo> TouchReceived;
 
-        // Pinch/Spread (center, fingerA target, fingerB target) / (center, scale, deltaScale, A, B)
-        public static Action<Vector2, PointerTarget, PointerTarget> OnPinchStart;
-        public static Action<Vector2, float, float, PointerTarget, PointerTarget> OnPinch;
-        public static Action<Vector2, PointerTarget, PointerTarget> OnPinchEnd;
-
-        // ========= 간단한 PointerTarget =========
-        public struct PointerTarget
+        public enum TouchType
         {
-            public GameObject target;
-            public GameObjectType type; // target 이 null 이면 None
-            public Vector2 screenPosition; // 이벤트 발생 시점의 스크린 좌표
-            public Vector3 rayHitPosition; // 월드 히트 포인트 또는 레이 시작점
-            public Vector3 rayDirection;   // 레이 발사 방향(카메라 기반)
-            public bool hasWorldHit;       // 2D/3D 레이캐스트 성공 여부
+            Press,
+            Tap,
+            DoubleTap,
+            DragStart,
+            Drag,
+            DragEnd,
+            PinchStart,
+            Pinch,
+            PinchEnd
+        }
+
+        public struct TouchInfo
+        {
+            public TouchType Type;
+            public DragInfo? Drag;
+            public PinchInfo? Pinch;
+            public PressInfo? Press;
+            public TapInfo? Tap;
+            public DoubleTapInfo? DoubleTap;
+
+            public static TouchInfo CreatePress(PressInfo info)
+            {
+                return new TouchInfo
+                {
+                    Type = TouchType.Press,
+                    Press = info
+                };
+            }
+
+            public static TouchInfo CreateTap(TapInfo info)
+            {
+                return new TouchInfo
+                {
+                    Type = TouchType.Tap,
+                    Tap = info
+                };
+            }
+
+            public static TouchInfo CreateDoubleTap(DoubleTapInfo info)
+            {
+                return new TouchInfo
+                {
+                    Type = TouchType.DoubleTap,
+                    DoubleTap = info
+                };
+            }
+
+            public static TouchInfo CreateDrag(TouchType type, DragInfo info)
+            {
+                UnityEngine.Debug.Assert(type == TouchType.DragStart || type == TouchType.Drag || type == TouchType.DragEnd);
+                return new TouchInfo
+                {
+                    Type = type,
+                    Drag = info
+                };
+            }
+
+            public static TouchInfo CreatePinch(TouchType type, PinchInfo info)
+            {
+                UnityEngine.Debug.Assert(type == TouchType.PinchStart || type == TouchType.Pinch || type == TouchType.PinchEnd);
+                return new TouchInfo
+                {
+                    Type = type,
+                    Pinch = info
+                };
+            }
+        }
+
+        public struct TouchTargetInfo
+        {
+            public GameObject Target;
+            public GameObjectType TargetType;
+            public Vector2 ScreenPosition;
+            public Vector3 RayHitPosition;
+            public Vector3 RayDirection;
+            public bool HasWorldHit;
+        }
+
+        public struct PressInfo
+        {
+            public TouchTargetInfo Target;
+        }
+
+        public struct TapInfo
+        {
+            public TouchTargetInfo Target;
+            public float Duration;
+        }
+
+        public struct DoubleTapInfo
+        {
+            public TouchTargetInfo Target;
+            public float Interval;
+            public Vector2 FirstTapScreenPosition;
+        }
+
+        public struct DragInfo
+        {
+            public TouchTargetInfo Target;
+            public Vector2 StartScreenPosition;
+            public Vector2 CurrentScreenPosition;
+            public Vector2 Delta;
+            public Vector2 Total;
+        }
+
+        public struct PinchFingerInfo
+        {
+            public TouchTargetInfo Target;
+            public Vector2 ScreenPosition;
+        }
+
+        public struct PinchInfo
+        {
+            public Vector2 Center;
+            public float Scale;
+            public float DeltaScale;
+            public PinchFingerInfo Primary;
+            public PinchFingerInfo Secondary;
         }
 
         // ---- 내부 상태 ----
@@ -90,6 +190,7 @@ namespace HyperModule
         private Vector2 startPos;
         private Vector2 lastPos;
         private Vector2 currentPos;
+        private float pressStartTime;
 
         // 더블탭 판정용
         private bool lastReleaseWasTap;
@@ -103,9 +204,9 @@ namespace HyperModule
         private Vector2 pinchCenter;
 
         // 대상 스냅샷
-        private PointerTarget pressTarget; // 드래그 동안 유지
-        private PointerTarget pinchTargetA;
-        private PointerTarget pinchTargetB;
+        private TouchTargetInfo pressTarget; // 드래그 동안 유지
+        private TouchTargetInfo pinchTargetA;
+        private TouchTargetInfo pinchTargetB;
 
         // UI 레이캐스트 캐시
         private PointerEventData pointerEventData;
@@ -238,14 +339,14 @@ namespace HyperModule
                 {
                     dragging = true;
                     var dragTarget = RefreshPressTarget(currentPos);
-                    dragTarget.screenPosition = currentPos;
+                    dragTarget.ScreenPosition = currentPos;
                     EmitDragStart(dragTarget);
 
                     if (!emitDragEveryFrame)
                     {
                         var delta = currentPos - lastPos;
                         var total = currentPos - startPos;
-                        EmitDrag(delta, total, dragTarget);
+                        EmitDragUpdate(dragTarget, delta, total);
                     }
                 }
 
@@ -257,8 +358,8 @@ namespace HyperModule
                     if (delta.sqrMagnitude > 0f)
                     {
                         var dragTarget = RefreshPressTarget(currentPos);
-                        dragTarget.screenPosition = currentPos;
-                        EmitDrag(delta, total, dragTarget);
+                        dragTarget.ScreenPosition = currentPos;
+                        EmitDragUpdate(dragTarget, delta, total);
                     }
                 }
             }
@@ -334,11 +435,12 @@ namespace HyperModule
 
             startPos = at;
             lastPos  = at;
+            pressStartTime = Time.unscaledTime;
 
             // 프레스 순간의 대상 스냅샷(드래그 타깃으로 유지)
             var pressSnapshot = RefreshPressTarget(at);
 
-            EmitPressed(pressSnapshot);
+            EmitPress(pressSnapshot);
         }
 
         private void EndPress(Vector2 at)
@@ -350,8 +452,8 @@ namespace HyperModule
             {
                 var total = at - startPos;
                 var dragTarget = RefreshPressTarget(at);
-                dragTarget.screenPosition = at;
-                EmitDragEnd(total, dragTarget);
+                dragTarget.ScreenPosition = at;
+                EmitDragEnd(dragTarget, total);
                 dragging = false;
                 lastReleaseWasTap = false;
                 return;
@@ -362,6 +464,7 @@ namespace HyperModule
             if (moved <= dragStartThreshold)
             {
                 var now = Time.unscaledTime;
+                var duration = now - pressStartTime;
 
                 bool canDouble =
                     doubleTapMaxDelay > 0f &&
@@ -373,13 +476,14 @@ namespace HyperModule
 
                 if (canDouble)
                 {
-                    EmitDoubleTap(releaseTarget);
+                    var interval = now - lastTapTime;
+                    EmitDoubleTap(releaseTarget, interval, lastTapPos);
                     lastReleaseWasTap = false;
                     lastTapTime = 0f;
                 }
                 else
                 {
-                    EmitTap(releaseTarget);
+                    EmitTap(releaseTarget, duration);
                     lastReleaseWasTap = true;
                     lastTapTime = now;
                     lastTapPos  = at;
@@ -406,8 +510,8 @@ namespace HyperModule
                     if (dragging)
                     {
                         var dragTarget = RefreshPressTarget(lastPos);
-                        dragTarget.screenPosition = lastPos;
-                        EmitDragEnd(lastPos - startPos, dragTarget);
+                        dragTarget.ScreenPosition = lastPos;
+                        EmitDragEnd(dragTarget, lastPos - startPos);
                         dragging = false;
                     }
 
@@ -419,7 +523,7 @@ namespace HyperModule
                     // 핀치 시작 시 각 손가락의 대상 스냅샷
                     RefreshPinchTargets(p0, p1);
 
-                    EmitPinchStart(center, pinchTargetA, pinchTargetB);
+                    EmitPinchStart(center, p0, p1, pinchTargetA, pinchTargetB);
                 }
                 else
                 {
@@ -433,7 +537,7 @@ namespace HyperModule
                         var scale      = dist / pinchInitialDist;
                         var deltaScale = (pinchPrevDist > 0f) ? deltaDist / pinchPrevDist : 0f;
 
-                        EmitPinch(center, scale, deltaScale, pinchTargetA, pinchTargetB);
+                        EmitPinchUpdate(center, p0, p1, scale, deltaScale, pinchTargetA, pinchTargetB);
                         pinchPrevDist = dist;
                     }
                 }
@@ -506,7 +610,7 @@ namespace HyperModule
 
         // ---------- 레이캐스트(UI/2D/3D) & 타겟 선택 ----------
 
-        private PointerTarget RefreshPressTarget(Vector2 screenPos)
+        private TouchTargetInfo RefreshPressTarget(Vector2 screenPos)
         {
             pressTarget = PickTargetAt(screenPos);
             return pressTarget;
@@ -518,16 +622,16 @@ namespace HyperModule
             pinchTargetB = PickTargetAt(fingerB);
         }
 
-        private PointerTarget PickTargetAt(Vector2 screenPos)
+        private TouchTargetInfo PickTargetAt(Vector2 screenPos)
         {
-            var result = new PointerTarget
+            var result = new TouchTargetInfo
             {
-                screenPosition = screenPos,
-                target = null,
-                type = GameObjectType.None,
-                rayHitPosition = Vector3.zero,
-                rayDirection = Vector3.zero,
-                hasWorldHit = false
+                ScreenPosition = screenPos,
+                Target = null,
+                TargetType = GameObjectType.None,
+                RayHitPosition = Vector3.zero,
+                RayDirection = Vector3.zero,
+                HasWorldHit = false
             };
 
             GameObject uiTop = null;
@@ -559,8 +663,8 @@ namespace HyperModule
             if (hasRay)
             {
                 ray = cam.ScreenPointToRay(screenPos);
-                result.rayDirection = ray.direction;
-                result.rayHitPosition = ray.origin; // 기본값: 히트하지 않은 경우 레이 시작점
+                result.RayDirection = ray.direction;
+                result.RayHitPosition = ray.origin; // 기본값: 히트하지 않은 경우 레이 시작점
             }
 
             GameObject hit3DGo = null;
@@ -601,25 +705,25 @@ namespace HyperModule
                 bool pick2D = hit2DDist < hit3DDist;
                 worldChosen = pick2D ? hit2DGo : hit3DGo;
                 worldType = pick2D ? GameObjectType.Sprite : GameObjectType.Mesh;
-                result.hasWorldHit = true;
+                result.HasWorldHit = true;
                 if (pick2D)
-                    result.rayHitPosition = hasRay ? ray.GetPoint(hit2DDist) : Vector3.zero;
+                    result.RayHitPosition = hasRay ? ray.GetPoint(hit2DDist) : Vector3.zero;
                 else
-                    result.rayHitPosition = hit3D.point;
+                    result.RayHitPosition = hit3D.point;
             }
             else if (hit2DGo != null)
             {
                 worldChosen = hit2DGo;
                 worldType = GameObjectType.Sprite;
-                result.hasWorldHit = true;
-                result.rayHitPosition = hasRay ? ray.GetPoint(hit2DDist) : Vector3.zero;
+                result.HasWorldHit = true;
+                result.RayHitPosition = hasRay ? ray.GetPoint(hit2DDist) : Vector3.zero;
             }
             else if (hit3DGo != null)
             {
                 worldChosen = hit3DGo;
                 worldType = GameObjectType.Mesh;
-                result.hasWorldHit = true;
-                result.rayHitPosition = hit3D.point;
+                result.HasWorldHit = true;
+                result.RayHitPosition = hit3D.point;
             }
 
             // 3) 최종 타겟 선택
@@ -659,13 +763,13 @@ namespace HyperModule
                 }
             }
 
-            result.target = chosen;
-            result.type = chosenType;
+            result.Target = chosen;
+            result.TargetType = chosenType;
 
             if (!hasRay)
             {
-                result.rayDirection = Vector3.zero;
-                result.rayHitPosition = Vector3.zero;
+                result.RayDirection = Vector3.zero;
+                result.RayHitPosition = Vector3.zero;
             }
 
             return result;
@@ -852,69 +956,180 @@ namespace HyperModule
             return pressed;
         }
 
-        // ---- Emit & 로그 (모두 PointerTarget 포함) ----
-        private static string FormatPointerTarget(PointerTarget t)
+        // ---- Emit & 로그 ----
+        private static string FormatTargetInfo(TouchTargetInfo target)
         {
-            string targetName = t.target ? t.target.name : "null";
-            return $"target:{targetName} type:{t.type} screen:{t.screenPosition} hasWorldHit:{t.hasWorldHit} rayPos:{t.rayHitPosition} rayDir:{t.rayDirection}";
+            string targetName = target.Target ? target.Target.name : "null";
+            return $"target:{targetName} type:{target.TargetType} screen:{target.ScreenPosition} hasWorldHit:{target.HasWorldHit} rayPos:{target.RayHitPosition} rayDir:{target.RayDirection}";
         }
 
-        private void EmitPressed(PointerTarget t)
+        private static string FormatPinchFinger(PinchFingerInfo finger)
         {
-            if (logDebug) Debug.Log($"[Pressed] {FormatPointerTarget(t)}");
-            OnPressed?.Invoke(t);
+            return $"screen:{finger.ScreenPosition} {FormatTargetInfo(finger.Target)}";
         }
 
-        private void EmitTap(PointerTarget t)
+        private void LogTouch(TouchInfo info)
         {
-            if (logDebug) Debug.Log($"[Tap] {FormatPointerTarget(t)}");
-            OnTap?.Invoke(t);
-        }
+            if (!logDebug)
+                return;
 
-        private void EmitDoubleTap(PointerTarget t)
-        {
-            if (logDebug) Debug.Log($"[DoubleTap] {FormatPointerTarget(t)}");
-            OnDoubleTap?.Invoke(t);
-        }
-
-        private void EmitDragStart(PointerTarget t)
-        {
-            if (logDebug) Debug.Log($"[DragStart] {FormatPointerTarget(t)}");
-            OnDragStart?.Invoke(t);
-        }
-
-        private void EmitDrag(Vector2 delta, Vector2 total, PointerTarget t)
-        {
-            if (logDebug) Debug.Log($"[Drag] delta:{delta} total:{total} {FormatPointerTarget(t)}");
-            OnDrag?.Invoke(delta, total, t);
-        }
-
-        private void EmitDragEnd(Vector2 total, PointerTarget t)
-        {
-            if (logDebug) Debug.Log($"[DragEnd] total:{total} {FormatPointerTarget(t)}");
-            OnDragEnd?.Invoke(total, t);
-        }
-
-        private void EmitPinchStart(Vector2 center, PointerTarget a, PointerTarget b)
-        {
-            if (logDebug) Debug.Log($"[PinchStart] center:{center} A:({FormatPointerTarget(a)}) B:({FormatPointerTarget(b)})");
-            OnPinchStart?.Invoke(center, a, b);
-        }
-
-        private void EmitPinch(Vector2 center, float scale, float deltaScale, PointerTarget a, PointerTarget b)
-        {
-            if (logDebug)
+            switch (info.Type)
             {
-                string mode = deltaScale > 0f ? "Spread(+)" : (deltaScale < 0f ? "Pinch(-)" : "Neutral");
-                Debug.Log($"[Pinch] center:{center} scale:{scale:F3} dScale:{deltaScale:F3} {mode} A:({FormatPointerTarget(a)}) B:({FormatPointerTarget(b)})");
+                case TouchType.Press:
+                    if (info.Press.HasValue)
+                        Debug.Log($"[Press] {FormatTargetInfo(info.Press.Value.Target)}");
+                    break;
+                case TouchType.Tap:
+                    if (info.Tap.HasValue)
+                    {
+                        var tap = info.Tap.Value;
+                        Debug.Log($"[Tap] duration:{tap.Duration:F3} {FormatTargetInfo(tap.Target)}");
+                    }
+                    break;
+                case TouchType.DoubleTap:
+                    if (info.DoubleTap.HasValue)
+                    {
+                        var dbl = info.DoubleTap.Value;
+                        Debug.Log($"[DoubleTap] interval:{dbl.Interval:F3} first:{dbl.FirstTapScreenPosition} {FormatTargetInfo(dbl.Target)}");
+                    }
+                    break;
+                case TouchType.DragStart:
+                case TouchType.Drag:
+                case TouchType.DragEnd:
+                    if (info.Drag.HasValue)
+                    {
+                        var drag = info.Drag.Value;
+                        string label = info.Type == TouchType.DragStart ? "DragStart" : info.Type == TouchType.Drag ? "Drag" : "DragEnd";
+                        Debug.Log($"[{label}] delta:{drag.Delta} total:{drag.Total} current:{drag.CurrentScreenPosition} start:{drag.StartScreenPosition} {FormatTargetInfo(drag.Target)}");
+                    }
+                    break;
+                case TouchType.PinchStart:
+                case TouchType.Pinch:
+                case TouchType.PinchEnd:
+                    if (info.Pinch.HasValue)
+                    {
+                        var pinch = info.Pinch.Value;
+                        string label = info.Type == TouchType.PinchStart ? "PinchStart" : info.Type == TouchType.Pinch ? "Pinch" : "PinchEnd";
+                        Debug.Log($"[{label}] center:{pinch.Center} scale:{pinch.Scale:F3} dScale:{pinch.DeltaScale:F3} primary({FormatPinchFinger(pinch.Primary)}) secondary({FormatPinchFinger(pinch.Secondary)})");
+                    }
+                    break;
             }
-            OnPinch?.Invoke(center, scale, deltaScale, a, b);
         }
 
-        private void EmitPinchEnd(Vector2 center, PointerTarget a, PointerTarget b)
+        private void EmitPress(TouchTargetInfo target)
         {
-            if (logDebug) Debug.Log($"[PinchEnd] center:{center} A:({FormatPointerTarget(a)}) B:({FormatPointerTarget(b)})");
-            OnPinchEnd?.Invoke(center, a, b);
+            var info = TouchInfo.CreatePress(new PressInfo { Target = target });
+            LogTouch(info);
+            TouchReceived?.Invoke(info);
+        }
+
+        private void EmitTap(TouchTargetInfo target, float duration)
+        {
+            var info = TouchInfo.CreateTap(new TapInfo { Target = target, Duration = duration });
+            LogTouch(info);
+            TouchReceived?.Invoke(info);
+        }
+
+        private void EmitDoubleTap(TouchTargetInfo target, float interval, Vector2 firstTapPosition)
+        {
+            var info = TouchInfo.CreateDoubleTap(new DoubleTapInfo
+            {
+                Target = target,
+                Interval = interval,
+                FirstTapScreenPosition = firstTapPosition
+            });
+            LogTouch(info);
+            TouchReceived?.Invoke(info);
+        }
+
+        private void EmitDragStart(TouchTargetInfo target)
+        {
+            var dragInfo = new DragInfo
+            {
+                Target = target,
+                StartScreenPosition = startPos,
+                CurrentScreenPosition = target.ScreenPosition,
+                Delta = Vector2.zero,
+                Total = Vector2.zero
+            };
+            var info = TouchInfo.CreateDrag(TouchType.DragStart, dragInfo);
+            LogTouch(info);
+            TouchReceived?.Invoke(info);
+        }
+
+        private void EmitDragUpdate(TouchTargetInfo target, Vector2 delta, Vector2 total)
+        {
+            var dragInfo = new DragInfo
+            {
+                Target = target,
+                StartScreenPosition = startPos,
+                CurrentScreenPosition = target.ScreenPosition,
+                Delta = delta,
+                Total = total
+            };
+            var info = TouchInfo.CreateDrag(TouchType.Drag, dragInfo);
+            LogTouch(info);
+            TouchReceived?.Invoke(info);
+        }
+
+        private void EmitDragEnd(TouchTargetInfo target, Vector2 total)
+        {
+            var dragInfo = new DragInfo
+            {
+                Target = target,
+                StartScreenPosition = startPos,
+                CurrentScreenPosition = target.ScreenPosition,
+                Delta = Vector2.zero,
+                Total = total
+            };
+            var info = TouchInfo.CreateDrag(TouchType.DragEnd, dragInfo);
+            LogTouch(info);
+            TouchReceived?.Invoke(info);
+        }
+
+        private void EmitPinchStart(Vector2 center, Vector2 primaryPosition, Vector2 secondaryPosition, TouchTargetInfo primary, TouchTargetInfo secondary)
+        {
+            var pinchInfo = new PinchInfo
+            {
+                Center = center,
+                Scale = 1f,
+                DeltaScale = 0f,
+                Primary = new PinchFingerInfo { Target = primary, ScreenPosition = primaryPosition },
+                Secondary = new PinchFingerInfo { Target = secondary, ScreenPosition = secondaryPosition }
+            };
+            var info = TouchInfo.CreatePinch(TouchType.PinchStart, pinchInfo);
+            LogTouch(info);
+            TouchReceived?.Invoke(info);
+        }
+
+        private void EmitPinchUpdate(Vector2 center, Vector2 primaryPosition, Vector2 secondaryPosition, float scale, float deltaScale, TouchTargetInfo primary, TouchTargetInfo secondary)
+        {
+            var pinchInfo = new PinchInfo
+            {
+                Center = center,
+                Scale = scale,
+                DeltaScale = deltaScale,
+                Primary = new PinchFingerInfo { Target = primary, ScreenPosition = primaryPosition },
+                Secondary = new PinchFingerInfo { Target = secondary, ScreenPosition = secondaryPosition }
+            };
+            var info = TouchInfo.CreatePinch(TouchType.Pinch, pinchInfo);
+            LogTouch(info);
+            TouchReceived?.Invoke(info);
+        }
+
+        private void EmitPinchEnd(Vector2 center, TouchTargetInfo primary, TouchTargetInfo secondary)
+        {
+            var pinchInfo = new PinchInfo
+            {
+                Center = center,
+                Scale = pinchInitialDist > 0f ? pinchPrevDist / pinchInitialDist : 1f,
+                DeltaScale = 0f,
+                Primary = new PinchFingerInfo { Target = primary, ScreenPosition = primary.ScreenPosition },
+                Secondary = new PinchFingerInfo { Target = secondary, ScreenPosition = secondary.ScreenPosition }
+            };
+            var info = TouchInfo.CreatePinch(TouchType.PinchEnd, pinchInfo);
+            LogTouch(info);
+            TouchReceived?.Invoke(info);
         }
 
 
