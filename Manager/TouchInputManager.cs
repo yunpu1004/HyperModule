@@ -60,13 +60,13 @@ namespace HyperModule
         [SerializeField] private float raycastMaxDistance = 1000f;
 
         // ========= 이벤트 (모든 시그니처에 PointerTarget 포함) =========
-        public static Action<Vector2, PointerTarget> OnPressed;
-        public static Action<Vector2, PointerTarget> OnTap;
-        public static Action<Vector2, PointerTarget> OnDoubleTap;
-        public static Action<Vector2, PointerTarget> OnDragStart;
-        // current, delta(from prev), total(from down), target(press 기준)
-        public static Action<Vector2, Vector2, Vector2, PointerTarget> OnDrag;
-        public static Action<Vector2, Vector2, PointerTarget> OnDragEnd;  // endPos, total(from down), target(press 기준)
+        public static Action<PointerTarget> OnPressed;
+        public static Action<PointerTarget> OnTap;
+        public static Action<PointerTarget> OnDoubleTap;
+        public static Action<PointerTarget> OnDragStart;
+        // delta(from prev), total(from down), target(press 기준)
+        public static Action<Vector2, Vector2, PointerTarget> OnDrag;
+        public static Action<Vector2, PointerTarget> OnDragEnd;  // total(from down), target(press 기준)
 
         // Pinch/Spread (center, fingerA target, fingerB target) / (center, scale, deltaScale, A, B)
         public static Action<Vector2, PointerTarget, PointerTarget> OnPinchStart;
@@ -78,6 +78,10 @@ namespace HyperModule
         {
             public GameObject target;
             public GameObjectType type; // target 이 null 이면 None
+            public Vector2 screenPosition; // 이벤트 발생 시점의 스크린 좌표
+            public Vector3 rayHitPosition; // 월드 히트 포인트 또는 레이 시작점
+            public Vector3 rayDirection;   // 레이 발사 방향(카메라 기반)
+            public bool hasWorldHit;       // 2D/3D 레이캐스트 성공 여부
         }
 
         // ---- 내부 상태 ----
@@ -233,13 +237,15 @@ namespace HyperModule
                 if (!dragging && movedFromStart >= dragStartThreshold)
                 {
                     dragging = true;
-                    EmitDragStart(currentPos, pressTarget);
+                    var dragTarget = pressTarget;
+                    dragTarget.screenPosition = currentPos;
+                    EmitDragStart(dragTarget);
 
                     if (!emitDragEveryFrame)
                     {
                         var delta = currentPos - lastPos;
                         var total = currentPos - startPos;
-                        EmitDrag(currentPos, delta, total, pressTarget);
+                        EmitDrag(delta, total, dragTarget);
                     }
                 }
 
@@ -249,7 +255,11 @@ namespace HyperModule
                     var delta = currentPos - lastPos;
                     var total = currentPos - startPos;
                     if (delta.sqrMagnitude > 0f)
-                        EmitDrag(currentPos, delta, total, pressTarget);
+                    {
+                        var dragTarget = pressTarget;
+                        dragTarget.screenPosition = currentPos;
+                        EmitDrag(delta, total, dragTarget);
+                    }
                 }
             }
 
@@ -328,7 +338,7 @@ namespace HyperModule
             // 프레스 순간의 대상 스냅샷(드래그 타깃으로 유지)
             pressTarget = PickTargetAt(at);
 
-            EmitPressed(at, pressTarget);
+            EmitPressed(pressTarget);
         }
 
         private void EndPress(Vector2 at)
@@ -339,7 +349,9 @@ namespace HyperModule
             if (dragging)
             {
                 var total = at - startPos;
-                EmitDragEnd(at, total, pressTarget);
+                var dragTarget = pressTarget;
+                dragTarget.screenPosition = at;
+                EmitDragEnd(total, dragTarget);
                 dragging = false;
                 lastReleaseWasTap = false;
                 return;
@@ -361,13 +373,13 @@ namespace HyperModule
 
                 if (canDouble)
                 {
-                    EmitDoubleTap(at, releaseTarget);
+                    EmitDoubleTap(releaseTarget);
                     lastReleaseWasTap = false;
                     lastTapTime = 0f;
                 }
                 else
                 {
-                    EmitTap(at, releaseTarget);
+                    EmitTap(releaseTarget);
                     lastReleaseWasTap = true;
                     lastTapTime = now;
                     lastTapPos  = at;
@@ -393,7 +405,9 @@ namespace HyperModule
                     // 드래그 중이었다면 먼저 종료
                     if (dragging)
                     {
-                        EmitDragEnd(lastPos, lastPos - startPos, pressTarget);
+                        var dragTarget = pressTarget;
+                        dragTarget.screenPosition = lastPos;
+                        EmitDragEnd(lastPos - startPos, dragTarget);
                         dragging = false;
                     }
 
@@ -494,6 +508,16 @@ namespace HyperModule
 
         private PointerTarget PickTargetAt(Vector2 screenPos)
         {
+            var result = new PointerTarget
+            {
+                screenPosition = screenPos,
+                target = null,
+                type = GameObjectType.None,
+                rayHitPosition = Vector3.zero,
+                rayDirection = Vector3.zero,
+                hasWorldHit = false
+            };
+
             GameObject uiTop = null;
 
             // 1) UI 레이캐스트
@@ -510,36 +534,36 @@ namespace HyperModule
                 EventSystem.current.RaycastAll(pointerEventData, s_UIResults);
 
                 if (s_UIResults.Count > 0)
-                {
                     uiTop = s_UIResults[0].gameObject;
-
-                    if (blockWorldIfUI)
-                    {
-                        return new PointerTarget
-                        {
-                            target = uiTop,
-                            type = GameObjectType.UI
-                        };
-                    }
-                }
             }
+
+            bool blockedByUI = blockWorldIfUI && uiTop != null;
 
             // 2) 월드(3D/2D) 레이캐스트
             Camera cam = worldCamera != null ? worldCamera : Camera.main;
+            Ray ray = default;
+            bool hasRay = cam != null;
+
+            if (hasRay)
+            {
+                ray = cam.ScreenPointToRay(screenPos);
+                result.rayDirection = ray.direction;
+                result.rayHitPosition = ray.origin; // 기본값: 히트하지 않은 경우 레이 시작점
+            }
 
             GameObject hit3DGo = null;
             float hit3DDist = float.MaxValue;
+            RaycastHit hit3D = default;
 
             GameObject hit2DGo = null;
             float hit2DDist = float.MaxValue;
+            RaycastHit2D hit2D = default;
 
-            if (cam != null && (raycast3D || raycast2D))
+            if (!blockedByUI && hasRay && (raycast3D || raycast2D))
             {
-                Ray ray = cam.ScreenPointToRay(screenPos);
-
                 if (raycast3D)
                 {
-                    if (Physics.Raycast(ray, out var hit3D, raycastMaxDistance, layerMask3D, QueryTriggerInteraction.Collide))
+                    if (Physics.Raycast(ray, out hit3D, raycastMaxDistance, layerMask3D, QueryTriggerInteraction.Collide))
                     {
                         hit3DGo = hit3D.collider.gameObject;
                         hit3DDist = hit3D.distance;
@@ -548,7 +572,7 @@ namespace HyperModule
 
                 if (raycast2D)
                 {
-                    var hit2D = Physics2D.GetRayIntersection(ray, raycastMaxDistance, layerMask2D);
+                    hit2D = Physics2D.GetRayIntersection(ray, raycastMaxDistance, layerMask2D);
                     if (hit2D.collider != null)
                     {
                         hit2DGo = hit2D.collider.gameObject;
@@ -557,69 +581,82 @@ namespace HyperModule
                 }
             }
 
+            GameObject worldChosen = null;
+            GameObjectType worldType = GameObjectType.None;
+
+            if (hit2DGo != null && hit3DGo != null)
+            {
+                bool pick2D = hit2DDist < hit3DDist;
+                worldChosen = pick2D ? hit2DGo : hit3DGo;
+                worldType = pick2D ? GameObjectType.Sprite : GameObjectType.Mesh;
+                result.hasWorldHit = true;
+                if (pick2D)
+                    result.rayHitPosition = hasRay ? ray.GetPoint(hit2DDist) : Vector3.zero;
+                else
+                    result.rayHitPosition = hit3D.point;
+            }
+            else if (hit2DGo != null)
+            {
+                worldChosen = hit2DGo;
+                worldType = GameObjectType.Sprite;
+                result.hasWorldHit = true;
+                result.rayHitPosition = hasRay ? ray.GetPoint(hit2DDist) : Vector3.zero;
+            }
+            else if (hit3DGo != null)
+            {
+                worldChosen = hit3DGo;
+                worldType = GameObjectType.Mesh;
+                result.hasWorldHit = true;
+                result.rayHitPosition = hit3D.point;
+            }
+
             // 3) 최종 타겟 선택
             GameObject chosen = null;
-            GameObjectType type = GameObjectType.None;
+            GameObjectType chosenType = GameObjectType.None;
 
-            if (preferUIOverWorld)
+            if (blockedByUI)
+            {
+                chosen = uiTop;
+                chosenType = GameObjectType.UI;
+            }
+            else if (preferUIOverWorld)
             {
                 if (uiTop != null)
                 {
                     chosen = uiTop;
-                    type = GameObjectType.UI;
+                    chosenType = GameObjectType.UI;
                 }
-                else
+                else if (worldChosen != null)
                 {
-                    if (hit2DGo != null && hit3DGo != null)
-                    {
-                        bool pick2D = hit2DDist < hit3DDist;
-                        chosen = pick2D ? hit2DGo : hit3DGo;
-                        type = pick2D ? GameObjectType.Sprite : GameObjectType.Mesh;
-                    }
-                    else if (hit2DGo != null)
-                    {
-                        chosen = hit2DGo;
-                        type = GameObjectType.Sprite;
-                    }
-                    else if (hit3DGo != null)
-                    {
-                        chosen = hit3DGo;
-                        type = GameObjectType.Mesh;
-                    }
+                    chosen = worldChosen;
+                    chosenType = worldType;
                 }
             }
             else
             {
-                if (hit2DGo != null && hit3DGo != null)
+                if (worldChosen != null)
                 {
-                    bool pick2D = hit2DDist < hit3DDist;
-                    chosen = pick2D ? hit2DGo : hit3DGo;
-                    type = pick2D ? GameObjectType.Sprite : GameObjectType.Mesh;
+                    chosen = worldChosen;
+                    chosenType = worldType;
                 }
-                else if (hit2DGo != null)
-                {
-                    chosen = hit2DGo;
-                    type = GameObjectType.Sprite;
-                }
-                else if (hit3DGo != null)
-                {
-                    chosen = hit3DGo;
-                    type = GameObjectType.Mesh;
-                }
-                else if (uiTop != null)
+
+                if (chosen == null && uiTop != null)
                 {
                     chosen = uiTop;
-                    type = GameObjectType.UI;
+                    chosenType = GameObjectType.UI;
                 }
             }
 
-            if (chosen == null) type = GameObjectType.None;
+            result.target = chosen;
+            result.type = chosenType;
 
-            return new PointerTarget
+            if (!hasRay)
             {
-                target = chosen,
-                type = type
-            };
+                result.rayDirection = Vector3.zero;
+                result.rayHitPosition = Vector3.zero;
+            }
+
+            return result;
         }
 
         // ---------- 유틸 (입력 좌표/디바이스) ----------
@@ -804,63 +841,70 @@ namespace HyperModule
         }
 
         // ---- Emit & 로그 (모두 PointerTarget 포함) ----
-
-        private void EmitPressed(Vector2 p, PointerTarget t)
+        private static string FormatPointerTarget(PointerTarget t)
         {
-            if (logDebug) Debug.Log($"[Pressed] {p} target:{(t.target ? t.target.name : "null")} type:{t.type}");
-            OnPressed?.Invoke(p, t);
+            string targetName = t.target ? t.target.name : "null";
+            return $"target:{targetName} type:{t.type} screen:{t.screenPosition} hasWorldHit:{t.hasWorldHit} rayPos:{t.rayHitPosition} rayDir:{t.rayDirection}";
         }
 
-        private void EmitTap(Vector2 p, PointerTarget t)
+        private void EmitPressed(PointerTarget t)
         {
-            if (logDebug) Debug.Log($"[Tap] {p} target:{(t.target ? t.target.name : "null")} type:{t.type}");
-            OnTap?.Invoke(p, t);
+            if (logDebug) Debug.Log($"[Pressed] {FormatPointerTarget(t)}");
+            OnPressed?.Invoke(t);
         }
 
-        private void EmitDoubleTap(Vector2 p, PointerTarget t)
+        private void EmitTap(PointerTarget t)
         {
-            if (logDebug) Debug.Log($"[DoubleTap] {p} target:{(t.target ? t.target.name : "null")} type:{t.type}");
-            OnDoubleTap?.Invoke(p, t);
+            if (logDebug) Debug.Log($"[Tap] {FormatPointerTarget(t)}");
+            OnTap?.Invoke(t);
         }
 
-        private void EmitDragStart(Vector2 p, PointerTarget t)
+        private void EmitDoubleTap(PointerTarget t)
         {
-            if (logDebug) Debug.Log($"[DragStart] {p} target:{(t.target ? t.target.name : "null")} type:{t.type}");
-            OnDragStart?.Invoke(p, t);
+            if (logDebug) Debug.Log($"[DoubleTap] {FormatPointerTarget(t)}");
+            OnDoubleTap?.Invoke(t);
         }
 
-        private void EmitDrag(Vector2 c, Vector2 d, Vector2 total, PointerTarget t)
+        private void EmitDragStart(PointerTarget t)
         {
-            if (logDebug) Debug.Log($"[Drag] pos:{c} delta:{d} total:{total} target:{(t.target ? t.target.name : "null")} type:{t.type}");
-            OnDrag?.Invoke(c, d, total, t);
+            if (logDebug) Debug.Log($"[DragStart] {FormatPointerTarget(t)}");
+            OnDragStart?.Invoke(t);
         }
 
-        private void EmitDragEnd(Vector2 e, Vector2 total, PointerTarget t)
+        private void EmitDrag(Vector2 delta, Vector2 total, PointerTarget t)
         {
-            if (logDebug) Debug.Log($"[DragEnd] end:{e} total:{total} target:{(t.target ? t.target.name : "null")} type:{t.type}");
-            OnDragEnd?.Invoke(e, total, t);
+            if (logDebug) Debug.Log($"[Drag] delta:{delta} total:{total} {FormatPointerTarget(t)}");
+            OnDrag?.Invoke(delta, total, t);
         }
 
-        private void EmitPinchStart(Vector2 c, PointerTarget a, PointerTarget b)
+        private void EmitDragEnd(Vector2 total, PointerTarget t)
         {
-            if (logDebug) Debug.Log($"[PinchStart] center:{c} A:{(a.target ? a.target.name : "null")}({a.type}) B:{(b.target ? b.target.name : "null")}({b.type})");
-            OnPinchStart?.Invoke(c, a, b);
+            if (logDebug) Debug.Log($"[DragEnd] total:{total} {FormatPointerTarget(t)}");
+            OnDragEnd?.Invoke(total, t);
         }
 
-        private void EmitPinch(Vector2 c, float scale, float deltaScale, PointerTarget a, PointerTarget b)
+        private void EmitPinchStart(Vector2 center, PointerTarget a, PointerTarget b)
+        {
+            if (logDebug) Debug.Log($"[PinchStart] center:{center} A:({FormatPointerTarget(a)}) B:({FormatPointerTarget(b)})");
+            OnPinchStart?.Invoke(center, a, b);
+        }
+
+        private void EmitPinch(Vector2 center, float scale, float deltaScale, PointerTarget a, PointerTarget b)
         {
             if (logDebug)
             {
                 string mode = deltaScale > 0f ? "Spread(+)" : (deltaScale < 0f ? "Pinch(-)" : "Neutral");
-                Debug.Log($"[Pinch] center:{c} scale:{scale:F3} dScale:{deltaScale:F3} {mode} A:{(a.target ? a.target.name : "null")}({a.type}) B:{(b.target ? b.target.name : "null")}({b.type})");
+                Debug.Log($"[Pinch] center:{center} scale:{scale:F3} dScale:{deltaScale:F3} {mode} A:({FormatPointerTarget(a)}) B:({FormatPointerTarget(b)})");
             }
-            OnPinch?.Invoke(c, scale, deltaScale, a, b);
+            OnPinch?.Invoke(center, scale, deltaScale, a, b);
         }
 
-        private void EmitPinchEnd(Vector2 c, PointerTarget a, PointerTarget b)
+        private void EmitPinchEnd(Vector2 center, PointerTarget a, PointerTarget b)
         {
-            if (logDebug) Debug.Log($"[PinchEnd] center:{c} A:{(a.target ? a.target.name : "null")}({a.type}) B:{(b.target ? b.target.name : "null")}({b.type})");
-            OnPinchEnd?.Invoke(c, a, b);
+            if (logDebug) Debug.Log($"[PinchEnd] center:{center} A:({FormatPointerTarget(a)}) B:({FormatPointerTarget(b)})");
+            OnPinchEnd?.Invoke(center, a, b);
         }
+
+
     }
 }
