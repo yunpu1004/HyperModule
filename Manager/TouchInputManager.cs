@@ -237,7 +237,7 @@ namespace HyperModule
                 if (!dragging && movedFromStart >= dragStartThreshold)
                 {
                     dragging = true;
-                    var dragTarget = pressTarget;
+                    var dragTarget = RefreshPressTarget(currentPos);
                     dragTarget.screenPosition = currentPos;
                     EmitDragStart(dragTarget);
 
@@ -256,7 +256,7 @@ namespace HyperModule
                     var total = currentPos - startPos;
                     if (delta.sqrMagnitude > 0f)
                     {
-                        var dragTarget = pressTarget;
+                        var dragTarget = RefreshPressTarget(currentPos);
                         dragTarget.screenPosition = currentPos;
                         EmitDrag(delta, total, dragTarget);
                     }
@@ -336,9 +336,9 @@ namespace HyperModule
             lastPos  = at;
 
             // 프레스 순간의 대상 스냅샷(드래그 타깃으로 유지)
-            pressTarget = PickTargetAt(at);
+            var pressSnapshot = RefreshPressTarget(at);
 
-            EmitPressed(pressTarget);
+            EmitPressed(pressSnapshot);
         }
 
         private void EndPress(Vector2 at)
@@ -349,7 +349,7 @@ namespace HyperModule
             if (dragging)
             {
                 var total = at - startPos;
-                var dragTarget = pressTarget;
+                var dragTarget = RefreshPressTarget(at);
                 dragTarget.screenPosition = at;
                 EmitDragEnd(total, dragTarget);
                 dragging = false;
@@ -405,7 +405,7 @@ namespace HyperModule
                     // 드래그 중이었다면 먼저 종료
                     if (dragging)
                     {
-                        var dragTarget = pressTarget;
+                        var dragTarget = RefreshPressTarget(lastPos);
                         dragTarget.screenPosition = lastPos;
                         EmitDragEnd(lastPos - startPos, dragTarget);
                         dragging = false;
@@ -417,14 +417,14 @@ namespace HyperModule
                     pinchCenter      = center;
 
                     // 핀치 시작 시 각 손가락의 대상 스냅샷
-                    pinchTargetA = PickTargetAt(p0);
-                    pinchTargetB = PickTargetAt(p1);
+                    RefreshPinchTargets(p0, p1);
 
                     EmitPinchStart(center, pinchTargetA, pinchTargetB);
                 }
                 else
                 {
                     pinchCenter = center;
+                    RefreshPinchTargets(p0, p1);
                     var deltaDist = dist - pinchPrevDist;
 
                     // 노이즈 억제
@@ -450,7 +450,7 @@ namespace HyperModule
                     {
                         startPos    = ReadCurrentPointerPosition();
                         lastPos     = startPos;
-                        pressTarget = PickTargetAt(startPos);
+                        RefreshPressTarget(startPos);
                     }
                 }
             }
@@ -505,6 +505,18 @@ namespace HyperModule
         }
 
         // ---------- 레이캐스트(UI/2D/3D) & 타겟 선택 ----------
+
+        private PointerTarget RefreshPressTarget(Vector2 screenPos)
+        {
+            pressTarget = PickTargetAt(screenPos);
+            return pressTarget;
+        }
+
+        private void RefreshPinchTargets(Vector2 fingerA, Vector2 fingerB)
+        {
+            pinchTargetA = PickTargetAt(fingerA);
+            pinchTargetB = PickTargetAt(fingerB);
+        }
 
         private PointerTarget PickTargetAt(Vector2 screenPos)
         {
