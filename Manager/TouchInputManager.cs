@@ -601,6 +601,12 @@ namespace HyperModule
         {
             if (TryGetTwoActiveTouchPositions(out var p0, out var p1))
             {
+                // 방어코드: 비정상 좌표(NaN/Infinity) 무시
+                if (!IsFinite(p0) || !IsFinite(p1))
+                {
+                    return; // 유효한 두 손가락 좌표가 아닐 때 핀치 시작/업데이트 생략
+                }
+
                 var center = (p0 + p1) * 0.5f;
                 var dist   = Vector2.Distance(p0, p1);
 
@@ -619,15 +625,15 @@ namespace HyperModule
                     pinchPrevDist    = dist;
                     pinchCenter      = center;
 
-                    // 핀치 시작 시 센터 기준 대상 스냅샷
-                    var centerTarget = RefreshPinchCenterTarget(center);
+                    // 핀치 시작 시 센터 기준 대상 스냅샷 (유효 좌표만 처리)
+                    var centerTarget = IsFinite(center) ? RefreshPinchCenterTarget(center) : default;
 
                     EmitPinchStart(center, p0, p1, centerTarget);
                 }
                 else
                 {
                     pinchCenter = center;
-                    var centerTarget = RefreshPinchCenterTarget(center);
+                    var centerTarget = IsFinite(center) ? RefreshPinchCenterTarget(center) : default;
                     var deltaDist = dist - pinchPrevDist;
 
                     // 노이즈 억제
@@ -723,6 +729,18 @@ namespace HyperModule
 
         private TouchTargetInfo PickTargetAt(Vector2 screenPos)
         {
+            // 방어코드: 비정상 좌표(NaN/Infinity) 혹은 카메라 외부 좌표는 레이캐스트 생략
+            if (!IsFinite(screenPos))
+            {
+                return new TouchTargetInfo(
+                    null,
+                    GameObjectType.None,
+                    screenPos,
+                    new Ray(Vector3.zero, Vector3.zero),
+                    false,
+                    Vector3.zero);
+            }
+
             GameObject chosen = null;
             GameObjectType chosenType = GameObjectType.None;
             Vector3 rayHitPos = Vector3.zero;
@@ -756,7 +774,15 @@ namespace HyperModule
 
             if (hasRay)
             {
-                ray = cam.ScreenPointToRay(screenPos);
+                // 카메라 픽셀 렉트 범위 검증(무한/NaN은 위에서 필터됨)
+                if (cam.pixelRect.Contains(screenPos))
+                {
+                    ray = cam.ScreenPointToRay(screenPos);
+                }
+                else
+                {
+                    hasRay = false; // 화면 밖 좌표일 때는 월드 레이캐스트 생략
+                }
                 rayHitPos = ray.origin; // 기본값: 히트하지 않은 경우 레이 시작점
             }
 
@@ -869,6 +895,11 @@ namespace HyperModule
         }
 
         // ---------- 유틸 (입력 좌표/디바이스) ----------
+
+        private static bool IsFinite(Vector2 v)
+        {
+            return !(float.IsNaN(v.x) || float.IsNaN(v.y) || float.IsInfinity(v.x) || float.IsInfinity(v.y));
+        }
 
         // ★ press 콜백의 컨텍스트에서 좌표와 디바이스를 최대한 직접 획득
         private bool TryGetPositionFromContext(InputAction.CallbackContext ctx, out Vector2 pos, out InputDevice device)

@@ -51,7 +51,7 @@ MonoBehaviour:
   doubleTapMaxDistance: 40
   pinchDeltaDistanceDeadzone: 0.5
   emitDragEveryFrame: 1
-  logDebug: 1
+  logDebug: 0
   autoEnableEnhancedTouch: 1
   synthesizeReleaseIfMissing: 1
   worldCamera: {fileID: 0}
