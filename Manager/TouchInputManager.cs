@@ -167,11 +167,11 @@ namespace HyperModule
         {
             private readonly TouchTargetInfo _targetInfo;
 
-            public GameObject targetObject => _targetInfo.Target;
-            public GameObjectType targetType => _targetInfo.TargetType;
+            public GameObject rayHitObject => _targetInfo.Target;
+            public GameObjectType rayHitObjectType => _targetInfo.TargetType;
             public Vector2 screenPosition => _targetInfo.ScreenPosition;
             public Ray ray => _targetInfo.Ray;
-            public bool hasWorldHit => _targetInfo.HasWorldHit;
+            public bool isRayHit => _targetInfo.HasWorldHit;
             public Vector3 rayHitPosition => _targetInfo.RayHitPosition;
             public Vector3 rayDirection => _targetInfo.RayDirection;
 
@@ -186,11 +186,11 @@ namespace HyperModule
             private readonly TouchTargetInfo _targetInfo;
             public readonly float duration;
 
-            public GameObject targetObject => _targetInfo.Target;
-            public GameObjectType targetType => _targetInfo.TargetType;
+            public GameObject rayHitObject => _targetInfo.Target;
+            public GameObjectType rayHitObjectType => _targetInfo.TargetType;
             public Vector2 screenPosition => _targetInfo.ScreenPosition;
             public Ray ray => _targetInfo.Ray;
-            public bool hasWorldHit => _targetInfo.HasWorldHit;
+            public bool isRayHit => _targetInfo.HasWorldHit;
             public Vector3 rayHitPosition => _targetInfo.RayHitPosition;
             public Vector3 rayDirection => _targetInfo.RayDirection;
 
@@ -207,11 +207,11 @@ namespace HyperModule
             public readonly float interval;
             public readonly Vector2 firstTapScreenPosition;
 
-            public GameObject targetObject => _targetInfo.Target;
-            public GameObjectType targetType => _targetInfo.TargetType;
+            public GameObject rayHitObject => _targetInfo.Target;
+            public GameObjectType rayHitObjectType => _targetInfo.TargetType;
             public Vector2 screenPosition => _targetInfo.ScreenPosition;
             public Ray ray => _targetInfo.Ray;
-            public bool hasWorldHit => _targetInfo.HasWorldHit;
+            public bool isRayHit => _targetInfo.HasWorldHit;
             public Vector3 rayHitPosition => _targetInfo.RayHitPosition;
             public Vector3 rayDirection => _targetInfo.RayDirection;
 
@@ -231,10 +231,10 @@ namespace HyperModule
             public readonly Vector2 delta;
             public readonly Vector2 total;
 
-            public GameObject targetObject => _targetInfo.Target;
-            public GameObjectType targetType => _targetInfo.TargetType;
+            public GameObject rayHitObject => _targetInfo.Target;
+            public GameObjectType rayHitObjectType => _targetInfo.TargetType;
             public Ray ray => _targetInfo.Ray;
-            public bool hasWorldHit => _targetInfo.HasWorldHit;
+            public bool isRayHit => _targetInfo.HasWorldHit;
             public Vector3 rayHitPosition => _targetInfo.RayHitPosition;
             public Vector3 rayDirection => _targetInfo.RayDirection;
 
@@ -263,11 +263,11 @@ namespace HyperModule
 
             private readonly TouchTargetInfo _targetInfo;
 
-            public GameObject targetObject => _targetInfo.Target;
-            public GameObjectType targetType => _targetInfo.TargetType;
+            public GameObject rayHitObject => _targetInfo.Target;
+            public GameObjectType rayHitObjectType => _targetInfo.TargetType;
             public Vector2 targetScreenPosition => _targetInfo.ScreenPosition;
             public Ray ray => _targetInfo.Ray;
-            public bool hasWorldHit => _targetInfo.HasWorldHit;
+            public bool isRayHit => _targetInfo.HasWorldHit;
             public Vector3 rayHitPosition => _targetInfo.RayHitPosition;
             public Vector3 rayDirection => _targetInfo.RayDirection;
 
@@ -1053,13 +1053,13 @@ namespace HyperModule
         private static string FormatTargetInfo(TouchTargetInfo target)
         {
             string targetName = target.Target ? target.Target.name : "null";
-            return $"target:{targetName} type:{target.TargetType} screen:{target.ScreenPosition} hasWorldHit:{target.HasWorldHit} rayPos:{target.RayHitPosition} rayDir:{target.RayDirection}";
+            return $"rayHitObject:{targetName} rayHitObjectType:{target.TargetType} screen:{target.ScreenPosition} isRayHit:{target.HasWorldHit} rayPos:{target.RayHitPosition} rayDir:{target.RayDirection}";
         }
 
-        private static string FormatTargetInfo(GameObject targetObj, GameObjectType type, Vector2 screen, bool hasWorldHit, Vector3 rayHitPos, Vector3 rayDir)
+        private static string FormatTargetInfo(GameObject targetObj, GameObjectType type, Vector2 screen, bool isRayHit, Vector3 rayHitPos, Vector3 rayDir)
         {
             string targetName = targetObj ? targetObj.name : "null";
-            return $"target:{targetName} type:{type} screen:{screen} hasWorldHit:{hasWorldHit} rayPos:{rayHitPos} rayDir:{rayDir}";
+            return $"rayHitObject:{targetName} rayHitObjectType:{type} screen:{screen} isRayHit:{isRayHit} rayPos:{rayHitPos} rayDir:{rayDir}";
         }
 
         private void LogTouch(TouchInfo info)
@@ -1073,21 +1073,21 @@ namespace HyperModule
                     if (info.press.HasValue)
                     {
                         var p = info.press.Value;
-                        Debug.Log($"[Press] {FormatTargetInfo(p.targetObject, p.targetType, p.screenPosition, p.hasWorldHit, p.rayHitPosition, p.rayDirection)}");
+                        Debug.Log($"[Press] {FormatTargetInfo(p.rayHitObject, p.rayHitObjectType, p.screenPosition, p.isRayHit, p.rayHitPosition, p.rayDirection)}");
                     }
                     break;
                 case TouchType.Tap:
                     if (info.tap.HasValue)
                     {
                         var tap = info.tap.Value;
-                        Debug.Log($"[Tap] duration:{tap.duration:F3} {FormatTargetInfo(tap.targetObject, tap.targetType, tap.screenPosition, tap.hasWorldHit, tap.rayHitPosition, tap.rayDirection)}");
+                        Debug.Log($"[Tap] duration:{tap.duration:F3} {FormatTargetInfo(tap.rayHitObject, tap.rayHitObjectType, tap.screenPosition, tap.isRayHit, tap.rayHitPosition, tap.rayDirection)}");
                     }
                     break;
                 case TouchType.DoubleTap:
                     if (info.doubleTap.HasValue)
                     {
                         var dbl = info.doubleTap.Value;
-                        Debug.Log($"[DoubleTap] interval:{dbl.interval:F3} first:{dbl.firstTapScreenPosition} {FormatTargetInfo(dbl.targetObject, dbl.targetType, dbl.screenPosition, dbl.hasWorldHit, dbl.rayHitPosition, dbl.rayDirection)}");
+                        Debug.Log($"[DoubleTap] interval:{dbl.interval:F3} first:{dbl.firstTapScreenPosition} {FormatTargetInfo(dbl.rayHitObject, dbl.rayHitObjectType, dbl.screenPosition, dbl.isRayHit, dbl.rayHitPosition, dbl.rayDirection)}");
                     }
                     break;
                 case TouchType.DragStart:
@@ -1097,7 +1097,7 @@ namespace HyperModule
                     {
                         var drag = info.drag.Value;
                         string label = info.type == TouchType.DragStart ? "DragStart" : info.type == TouchType.Drag ? "Drag" : "DragEnd";
-                        Debug.Log($"[{label}] delta:{drag.delta} total:{drag.total} current:{drag.currentScreenPosition} start:{drag.startScreenPosition} {FormatTargetInfo(drag.targetObject, drag.targetType, drag.currentScreenPosition, drag.hasWorldHit, drag.rayHitPosition, drag.rayDirection)}");
+                        Debug.Log($"[{label}] delta:{drag.delta} total:{drag.total} current:{drag.currentScreenPosition} start:{drag.startScreenPosition} {FormatTargetInfo(drag.rayHitObject, drag.rayHitObjectType, drag.currentScreenPosition, drag.isRayHit, drag.rayHitPosition, drag.rayDirection)}");
                     }
                     break;
                 case TouchType.PinchStart:
@@ -1107,7 +1107,7 @@ namespace HyperModule
                     {
                         var pinch = info.pinch.Value;
                         string label = info.type == TouchType.PinchStart ? "PinchStart" : info.type == TouchType.Pinch ? "Pinch" : "PinchEnd";
-                        Debug.Log($"[{label}] center:{pinch.center} scale:{pinch.scale:F3} dScale:{pinch.deltaScale:F3} A:{pinch.screenPositionA} B:{pinch.screenPositionB} {FormatTargetInfo(pinch.targetObject, pinch.targetType, pinch.targetScreenPosition, pinch.hasWorldHit, pinch.rayHitPosition, pinch.rayDirection)}");
+                        Debug.Log($"[{label}] center:{pinch.center} scale:{pinch.scale:F3} dScale:{pinch.deltaScale:F3} A:{pinch.screenPositionA} B:{pinch.screenPositionB} {FormatTargetInfo(pinch.rayHitObject, pinch.rayHitObjectType, pinch.targetScreenPosition, pinch.isRayHit, pinch.rayHitPosition, pinch.rayDirection)}");
                     }
                     break;
             }
