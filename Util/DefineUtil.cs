@@ -129,6 +129,24 @@ namespace HyperModule
         }
 
         /// <summary>
+        /// 지정한 Define 심볼이 현재 프로젝트 설정에 존재하는지 확인합니다.
+        /// </summary>
+        public static bool CheckDefineExist(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            var target = value.Trim();
+            var defines = GetProjectDefineSymbols();
+
+            for (int i = 0; i < defines.Length; i++)
+            {
+                if (string.Equals(defines[i], target, StringComparison.Ordinal)) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// 프로젝트 Scripting Define Symbols에 심볼을 추가합니다.
         /// 이미 존재하면 false, 새로 추가되면 true를 반환합니다.
         /// </summary>

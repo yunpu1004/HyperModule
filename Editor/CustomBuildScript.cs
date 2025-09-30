@@ -1,7 +1,4 @@
-// CustomBuildScript.cs
-// Jenkins Boolean?È¯°æº¯¼ö "QA" ·Î QA ÀüÃ³¸®±â ½É¹úÀ» ÄÑ°Å³ª ²ô´Â ÀÚµ¿ ºôµå ½ºÅ©¸³Æ®
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -13,65 +10,59 @@ namespace HyperModule
     public static class CustomBuildScript
     {
         const string QA_DEFINE = "QA";
-
-        /// <summary>
-        /// Jenkins Boolean ÆÄ¶ó¹ÌÅÍ "QA" °ª(true/false) Á¶È¸
-        /// </summary>
         static bool IsQADefineEnabled()
         {
             string qa = Environment.GetEnvironmentVariable("QA");
             return !string.IsNullOrEmpty(qa) && (qa.Equals("true", StringComparison.OrdinalIgnoreCase) || qa.Equals("1"));
         }
-
-        /// <summary>
-        /// ±âÁ¸ ÀüÃ³¸®±â ¹®ÀÚ¿­¿¡¼­ Æ¯Á¤ ½É¹úÀ» Ãß°¡ ¹× Á¦°Å ÈÄ »õ ¹®ÀÚ¿­ ¹ÝÈ¯
-        /// </summary>
-        static string MergeDefine(string original, string symbol, bool enable)
+        static void WithBuildTargetGroup(BuildTargetGroup group, Action action)
         {
-            var set = new HashSet<string>(original.Split(';').Where(s => !string.IsNullOrWhiteSpace(s)));
+            if (action == null) return;
 
-            if (enable)
-                set.Add(symbol);
-            else
-                set.Remove(symbol);
+            var previousGroup = EditorUserBuildSettings.selectedBuildTargetGroup;
+            if (previousGroup == group)
+            {
+                action();
+                return;
+            }
 
-            return string.Join(";", set);
+            try
+            {
+                EditorUserBuildSettings.selectedBuildTargetGroup = group;
+                action();
+            }
+            finally
+            {
+                EditorUserBuildSettings.selectedBuildTargetGroup = previousGroup;
+            }
         }
 
-        /// <summary>
-        /// QA ½É¹úÀ» ¼³Á¤ÇÏ´Â ¸Þ¼Òµå
-        /// </summary>
         static void SetQASymbol(BuildTargetGroup group)
         {
-            string prevDefs = PlayerSettings.GetScriptingDefineSymbolsForGroup(group);
-            string newDefs  = MergeDefine(prevDefs, QA_DEFINE, IsQADefineEnabled());
-            PlayerSettings.SetScriptingDefineSymbolsForGroup(group, newDefs);
+            WithBuildTargetGroup(group, () =>
+            {
+                if (IsQADefineEnabled())
+                    DefineUtil.AddProjectDefineSymbol(QA_DEFINE);
+                else
+                    DefineUtil.RemoveProjectDefineSymbol(QA_DEFINE);
+            });
         }
-
-        /// <summary>Jenkins ºôµå ³Ñ¹ö ¡æ int ·Î º¯È¯ (¾øÀ¸¸é 1)</summary>
         static int GetBuildNumberOrDefault()
         {
             string num = Environment.GetEnvironmentVariable("BUILD_NUMBER");
             return int.TryParse(num, out int n) ? n : 1;
         }
-
-        /*¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-         *  Android ºôµå
-         *¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡*/
         [MenuItem("Tools/Build/Android")]
         public static void PerformBuildAndroid()
         {
-            // 1) ¾Æ¿ôÇ² Æú´õ
             string path = "Builds/Android";
             Directory.CreateDirectory(path);
 
-            // 2) È°¼º ¾À ¼öÁý
             string[] levels = EditorBuildSettings.scenes
                 .Where(s => s.enabled)
                 .Select(s => s.path)
                 .ToArray();
 
-            // 3) BuildPlayerOptions
             var buildPlayerOptions = new BuildPlayerOptions
             {
                 scenes = levels,
@@ -80,23 +71,18 @@ namespace HyperModule
                 options = BuildOptions.None
             };
 
-            // 4) ¹øµé ¹öÀü ÄÚµå
             PlayerSettings.Android.bundleVersionCode = GetBuildNumberOrDefault();
 
-            // 5) ºôµå ½ÇÇà
-            if(Application.isBatchMode) SetQASymbol(BuildTargetGroup.Android);
+            if (Application.isBatchMode) SetQASymbol(BuildTargetGroup.Android);
             BuildReport rpt = BuildPipeline.BuildPlayer(buildPlayerOptions);
 
             Debug.Log(rpt.summary.result == BuildResult.Succeeded
-                      ? $"[Android] Build ¼º°ø: {rpt.summary.totalSize} bytes"
-                      : $"[Android] Build ½ÇÆÐ: {rpt.summary.result}");
+                      ? $"[Android] Build Â¼ÂºÂ°Ã¸: {rpt.summary.totalSize} bytes"
+                      : $"[Android] Build Â½Ã‡Ã†Ã: {rpt.summary.result}");
 
             Debug.Log($"Setting {QA_DEFINE} define: {IsQADefineEnabled()}");
         }
 
-        /*¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-         *  iOS ºôµå
-         *¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡*/
         [MenuItem("Tools/Build/iOS")]
         public static void PerformBuildiOS()
         {
@@ -111,7 +97,7 @@ namespace HyperModule
             var buildPlayerOptions = new BuildPlayerOptions
             {
                 scenes = levels,
-                locationPathName = path, // Xcode ÇÁ·ÎÁ§Æ® Æú´õ
+                locationPathName = path,
                 target = BuildTarget.iOS,
                 options = BuildOptions.None
             };
@@ -122,8 +108,8 @@ namespace HyperModule
             BuildReport rpt = BuildPipeline.BuildPlayer(buildPlayerOptions);
 
             Debug.Log(rpt.summary.result == BuildResult.Succeeded
-                      ? $"[iOS] Build ¼º°ø: {rpt.summary.totalSize} bytes"
-                      : $"[iOS] Build ½ÇÆÐ: {rpt.summary.result}");
+                      ? $"[iOS] Build Â¼ÂºÂ°Ã¸: {rpt.summary.totalSize} bytes"
+                      : $"[iOS] Build Â½Ã‡Ã†Ã: {rpt.summary.result}");
                       
             Debug.Log($"Setting {QA_DEFINE} define: {IsQADefineEnabled()}");
         }
