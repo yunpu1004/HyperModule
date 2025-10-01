@@ -21,6 +21,11 @@ namespace HyperModule
         public static LoadState loadState { get; private set; } = LoadState.Unloaded;
 
         /// <summary>
+        /// Init 완료 시 호출되는 이벤트. 성공적으로 로딩을 마친 뒤 메인 스레드에서 호출됩니다.
+        /// </summary>
+        public static event Action OnInitComplete;
+
+        /// <summary>
         /// Resources/Settings/ProjectSettings 를 로드하여, addressablesLabels 기준으로
         /// Addressables 에셋을 모두 로드하고 Dictionary<string, object> 에 저장합니다.
         /// 키는 에셋의 Address(PrimaryKey) 입니다.
@@ -104,6 +109,17 @@ namespace HyperModule
                 Addressables.Release(locHandle);
                 QAUtil.Log($"[AddressablesManager] Loaded {loadedCount} / {uniqueLocations.Count} assets into dictionary.");
                 loadState = LoadState.Loaded;
+
+                // 메인 스레드에서 완료 이벤트 알림
+                await UniTask.SwitchToMainThread();
+                try
+                {
+                    OnInitComplete?.Invoke();
+                }
+                catch (Exception invokeEx)
+                {
+                    Debug.LogException(invokeEx);
+                }
             }
             catch (Exception e)
             {
