@@ -97,6 +97,8 @@ namespace HyperModule
             Debug.Log($"Build command args: {string.Join(" ", Environment.GetCommandLineArgs())}");
             Debug.Log($"Build command env: {string.Join(", ", Environment.GetEnvironmentVariables())}");
 
+            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+
             string path = GetArg("-exportPath");
 
             string[] levels = EditorBuildSettings.scenes
@@ -143,6 +145,8 @@ namespace HyperModule
         {
             Debug.Log($"Build command args: {string.Join(" ", Environment.GetCommandLineArgs())}");
             Debug.Log($"Build command env: {string.Join(", ", Environment.GetEnvironmentVariables())}");
+
+            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
             
             string path = GetArg("-exportPath");
 
@@ -188,7 +192,9 @@ namespace HyperModule
         public static void PerformBuildiOS()
         {
             string path = "Build";
-            Directory.CreateDirectory(path);
+
+            // 빌드 플랫폼을 iOS로 변경
+            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.iOS, BuildTarget.iOS);
 
             string[] levels = EditorBuildSettings.scenes
                 .Where(s => s.enabled)

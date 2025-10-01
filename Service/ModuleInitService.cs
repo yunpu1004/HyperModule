@@ -3,12 +3,17 @@ using Cysharp.Threading.Tasks;
 
 namespace HyperModule
 {
-    public static class BeforeSplashScreenInitializer
+    public class ModuleInitService : IService
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
         private static void Init()
         {
-            QAUtil.Log("BeforeSplashScreenInitializer Init");
+            new ModuleInitService().Execute();
+        }
+
+        public void Execute()
+        {
+            QAUtil.Log("=== ModuleInitService ===");
             ExcelDictionaryManager.Init();
             AddressablesManager.Init().Forget();
             TouchInputManager.Init();
